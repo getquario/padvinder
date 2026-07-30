@@ -9,7 +9,8 @@ export interface QueryOptions {
 export type PadvinderErrorCode =
 	| 'PADVINDER_MAX_NODES'
 	| 'PADVINDER_MAX_DEPTH'
-	| 'PADVINDER_MAX_RESULTS';
+	| 'PADVINDER_MAX_RESULTS'
+	| 'PADVINDER_MAX_COMPARISONS';
 export interface PadvinderDiagnostic extends Error {
 	readonly code?: PadvinderErrorCode;
 	readonly limit?: number;

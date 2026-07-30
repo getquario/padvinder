@@ -6,8 +6,14 @@
 
 import { compile as compileRE, isDiagnostic as isREDiagnostic } from 'treffer';
 
+/** @import { PadvinderErrorCode } from './index.js' */
+
 const BLOCK = k => k === '__proto__' || k === 'constructor' || k === 'prototype';
 const LIMITS = ['maxNodes', 'maxDepth', 'maxResults'];
+// Positionally parallel to LIMITS. Kept as literals so tsc checks them against
+// PadvinderErrorCode at the `cap()` call site.
+/** @type {PadvinderErrorCode[]} */
+const CODES = ['PADVINDER_MAX_NODES', 'PADVINDER_MAX_DEPTH', 'PADVINDER_MAX_RESULTS'];
 
 let diags = new WeakMap(), mark = diags.set.bind(diags), origin = diags.get.bind(diags);
 export let isDiagnostic = diags.has.bind(diags);
@@ -15,7 +21,8 @@ let fault = (Type, msg, own) => {
 	const e = Type(msg);
 	return mark(e, own), e;
 };
-let err = m => { throw fault(SyntaxError, m) };
+/** @returns {never} */
+const err = m => { throw fault(SyntaxError, m) };
 
 // A one-entry cache avoids recompiling a document-supplied pattern per node
 // without retaining an attacker-controlled set of patterns.
@@ -35,18 +42,25 @@ let reTest = (s, p, full) => {
 
 // Own child values of a node (guarded). Arrays enumerate own indexes only, so
 // a hole never reads an inherited value off the prototype chain.
-// One builder for every exhausted-budget diagnostic: camelCase budget name in,
-// typed RangeError with a derived PADVINDER_* code out.
-let cap = (name, max, actual, own) => {
-	const e = fault(RangeError, name + ' limit of ' + max + ' exceeded', own);
-	e.code = 'PADVINDER_' + name.replace(/([A-Z])/g, '_$1').toUpperCase();
+// One builder for every exhausted-budget diagnostic: camelCase budget name and
+// its code in, typed RangeError out. The code is a literal from CODES rather
+// than derived from `name`, so tsc checks it against the published union — a
+// derived string would satisfy `string` and drift silently.
+/**
+ * @param {PadvinderErrorCode} code
+ * @param {any} [own] The value the budget was exhausted on, when there is one.
+ * @returns {never}
+ */
+const cap = (name, code, max, actual, own) => {
+	const e = /** @type {Error & { code: PadvinderErrorCode, limit: number, actual: number }} */ (fault(RangeError, name + ' limit of ' + max + ' exceeded', own));
+	e.code = code;
 	e.limit = max;
 	e.actual = actual;
 	throw e;
 };
 let limit = (ctx, key, actual) => {
 	const max = ctx?.[key];
-	if (max !== undefined && actual > max) cap(LIMITS[key], max, actual, ctx[4]);
+	if (max !== undefined && actual > max) cap(LIMITS[key], CODES[key], max, actual, ctx[4]);
 };
 
 let loc = (value, depth, ctx) => {
@@ -215,7 +229,9 @@ let selector = (s, fns, meta) => {
 		return { f: (n, root, ctx) => Array.isArray(n.v) ? [] : child(n, k, ctx), m: ['name', k] };
 	}
 	if (/^-?\d+$/.test(s)) return { f: (n, root, ctx) => Array.isArray(n.v) ? child(n, s, ctx) : [], m: ['index', +s || 0] };
-	err('Bad selector [' + s + ']');
+	// `return` so the never from err() lands in the signature: without it every
+	// caller sees `| undefined` and has to null-check a selector that cannot be.
+	return err('Bad selector [' + s + ']');
 };
 
 // Parse consecutive segments starting at index `j`; returns the compiled
@@ -282,7 +298,7 @@ let deepEq = (a, b) => {
 	const stack = [a, b];
 	let steps = 0;
 	while (stack.length) {
-		if (++steps > EQ_STEPS) cap('maxComparisons', EQ_STEPS, steps);
+		if (++steps > EQ_STEPS) cap('maxComparisons', 'PADVINDER_MAX_COMPARISONS', EQ_STEPS, steps);
 		const y = stack.pop(), x = stack.pop();
 		if (x === y) continue;
 		// Arrays and objects share one own-key walk: array elements are index
@@ -366,7 +382,7 @@ let rfcFilter = (src, fns, meta) => {
 			k = j + 1;
 			return () => v;
 		}
-		for (const [w, v] of [['true', !0], ['false', !1], ['null', null]])
+		for (const [w, v] of /** @type {[string, boolean | null][]} */ ([['true', !0], ['false', !1], ['null', null]]))
 			if (src.startsWith(w, k) && !/\w/.test(src[k + w.length] ?? '')) {
 				k += w.length;
 				return () => v;

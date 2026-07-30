@@ -6,9 +6,9 @@ Tiny, CSP-safe RFC 9535 JSONPath engine. Same family and toolchain as xprsn and 
 
 - `npm run check` — the complete pull-request CI quality gate: build, size, unit and type tests (including compliance coverage), deterministic fuzz regression, and browser CSP.
 - **Non-negotiable: run `npm run check` before declaring any work done.** Passing unit tests alone is not done — a change is complete only when the full gate above is green. Never say "done", close an issue, or hand off without it.
-- `npm test` — Node's built-in test runner under `--disallow-code-generation-from-strings` (strict-CSP simulation), then `npm run test:types` (a smoke check that `index.d.ts` is usable, in `test/types.check.ts`). Keep this on Node: Bun accepts that V8 flag but does not enforce it.
-- `npm run build` — tsdown (rolldown + oxc), configured in `tsdown.config.js` → `dist/` (ESM/CJS targeting ES2024). Type generation is off; `index.d.ts` is hand-written.
-- `npm run size` — size-limit checks the gzip size of `dist/index.js` and `dist/index.cjs` against the budgets in `package.json`.
+- `npm test` — Node's built-in test runner under `--disallow-code-generation-from-strings` (strict-CSP simulation), then `npm run test:types`, a plain `tsc` that type-checks `src/` **and** `test/types.check.ts` in one pass. No build needed. Keep this on Node: Bun accepts that V8 flag but does not enforce it.
+- `npm run build` — tsdown (rolldown + oxc), configured in `tsdown.config.js` → `dist/` (ESM only, ES2024). Type generation is off (`dts: false`); the hand-written `src/index.d.ts` is carried over by tsdown's `copy`.
+- `npm run size` — size-limit checks the gzip size of `dist/index.js` against the budget in `package.json`.
 - `npm run test:browser` — builds the package and runs the browser bundle in Playwright Chromium under a strict CSP.
 - Run a single suite: `node --disallow-code-generation-from-strings --test test/query.test.js`
 - `npm run fuzz` — jazzer.js discovery over `compile`, `find`, `structured` targets in `fuzz/` (run against `src/` under `--disallow-code-generation-from-strings`); `npm run fuzz:regression` replays the committed corpus (the CI gate). See [fuzz/README.md](fuzz/README.md). `fuzz/` is not in `files`, so it is never published.
@@ -51,7 +51,9 @@ Apply this across the whole project: implementation, API design, tests, document
 
 - Tabs for indentation. Tests use `node:test`: unit and compliance suites live in `test/*.test.js` (`query`, `errors`, `safety`, `compliance`), the type smoke check is `test/types.check.ts`, and browser fixtures live in `test/browser/`.
 - Do not mention Symfony in code, comments, or docs.
-- Runtime support is Node.js 22+ through ESM/CJS and ES2024 browser environments through a standards-based ESM bundler. There is no direct-script global or UMD build.
+- Runtime support is Node.js 22.12+ (unflagged `require(esm)`), **ESM only**, plus ES2024 browser environments through a standards-based ESM bundler. There is no CommonJS, direct-script global, or UMD build — shipping two formats would split the diagnostics WeakSet/WeakMap across a `require`/`import` seam, which no config can fix.
 - Suggested commit messages must follow Conventional Commits and be at most 80 characters.
-- `dist/` is gitignored build output. `index.d.ts` is **hand-written** (bundler type generation is off via `dts: false` in `tsdown.config.js`) — keep it in sync with the JSDoc in `src/index.js` by hand. `test/types.check.ts` (run by `npm run test:types`, part of `npm test`) is a smoke check that the declarations are usable.
+- `dist/` is gitignored build output and the **only** thing published — `files` is just `["dist"]`. The hand-written declaration lives in `src/index.d.ts`, beside the code it describes, and tsdown's `copy` carries it into `dist/`.
+- **`checkJs` over `src/` is what keeps that declaration honest.** `tsconfig.json` type-checks `src/**/*.js` with `noImplicitAny` off — that one setting is the difference between 7 real errors and a flood of `noImplicitAny` noise. `cap()` takes `PadvinderErrorCode`, so a budget code the implementation throws but `index.d.ts` omits fails to compile. Verify with: swap a thrown code for a made-up one and confirm `npm run test:types` fails.
+- **Budget codes must stay literal at the `cap()` call site.** They used to be derived (`'PADVINDER_' + name.replace(/([A-Z])/g, '_$1').toUpperCase()`), which satisfies `string` and is invisible to tsc — that is exactly how `PADVINDER_MAX_COMPARISONS` shipped undeclared. `CODES` is positionally parallel to `LIMITS`; add to both, and to the union in `src/index.d.ts`.
 - New path/filter syntax or safety guards must be reflected in the structured fuzz generator (`fuzz/structured.fuzz.js`): teach the generator the new form and add an oracle or fixed battery for any new invariant.

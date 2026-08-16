@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { query } from '../src/index.js';
+import { query } from '../lib/index.js';
 
 // The official JSONPath Compliance Test Suite, vendored from
 // https://github.com/jsonpath-standard/jsonpath-compliance-test-suite

@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { FuzzedDataProvider } from '@jazzer.js/core';
-import { isDiagnostic, query } from '../src/index.js';
+import { isDiagnostic, query } from '../lib/index.js';
 import { FIXTURE, collect, snap } from './lib.js';
 
 const { nodes, leaves } = collect(FIXTURE);

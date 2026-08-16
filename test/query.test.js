@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { find, isDiagnostic, query } from '../src/index.js';
+import { find, isDiagnostic, query } from '../lib/index.js';
 
 const data = {
 	store: {

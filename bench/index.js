@@ -1,6 +1,6 @@
 // Manual micro- and scaling benchmarks for padvinder. Run with `npm run bench`.
 import assert from 'node:assert/strict';
-import { find, query } from '../src/index.js';
+import { find, query } from '../lib/index.js';
 
 let sink = 0;
 

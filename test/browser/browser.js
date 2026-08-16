@@ -1,4 +1,4 @@
-import { find, query } from '/dist/index.js';
+import { find, query } from '/lib/index.js';
 
 const result = document.querySelector('#result');
 const violations = [];

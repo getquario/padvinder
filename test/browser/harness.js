@@ -14,13 +14,15 @@ const CSP = [
 	"form-action 'none'",
 ].join('; ');
 
-const built = (await readFile(new URL('../../dist/index.js', import.meta.url), 'utf8'))
+const built = (await readFile(new URL('../../lib/index.js', import.meta.url), 'utf8'))
 	.replace(/from\s*["']treffer["']/, 'from"/treffer.js"');
 const files = new Map([
 	['/', ['text/html; charset=utf-8', await readFile(new URL('./index.html', import.meta.url))]],
 	['/browser.js', ['text/javascript; charset=utf-8', await readFile(new URL('./browser.js', import.meta.url))]],
-	['/dist/index.js', ['text/javascript; charset=utf-8', built]],
-	['/treffer.js', ['text/javascript; charset=utf-8', await readFile(new URL('../../node_modules/treffer/dist/index.js', import.meta.url))]],
+	['/lib/index.js', ['text/javascript; charset=utf-8', built]],
+	// Resolved through the exports map rather than a hardcoded path, so this
+	// keeps working whichever directory treffer publishes its entry from.
+	['/treffer.js', ['text/javascript; charset=utf-8', await readFile(new URL(import.meta.resolve('treffer')))]],
 ]);
 
 const server = http.createServer((request, response) => {

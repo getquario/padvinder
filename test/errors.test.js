@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isDiagnostic, query } from '../src/index.js';
+import { isDiagnostic, query } from '../lib/index.js';
 
 const caught = run => {
 	try { run() }
@@ -76,7 +76,7 @@ test('diagnostic provenance cannot be copied', () => {
 });
 
 test('diagnostic provenance is local to a module instance', async () => {
-	const other = await import('../src/index.js?instance=provenance');
+	const other = await import('../lib/index.js?instance=provenance');
 	let first, second;
 	try { query('bad') } catch (e) { first = e }
 	try { other.query('bad') } catch (e) { second = e }
@@ -109,7 +109,7 @@ test('runtime diagnostic provenance is scoped to its runner', () => {
 });
 
 test('runtime provenance is local to a module instance', async () => {
-	const other = await import('../src/index.js?instance=runtime-provenance');
+	const other = await import('../lib/index.js?instance=runtime-provenance');
 	const first = query('$[*]', {}, { maxResults: 0 });
 	const second = other.query('$[*]', {}, { maxResults: 0 });
 	const one = caught(() => first([1]));

@@ -1,5 +1,5 @@
 .fuzz-corpus/
-dist/
+
 node_modules/
 
 # libFuzzer artifacts — written under fuzz/ via -artifact_prefix=fuzz/

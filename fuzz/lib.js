@@ -1,4 +1,4 @@
-import { isDiagnostic, query } from '../src/index.js';
+import { isDiagnostic, query } from '../lib/index.js';
 
 // padvinder's only expected error is a compile-time SyntaxError (malformed path
 // or filter). A compiled query never throws at run time and always returns an

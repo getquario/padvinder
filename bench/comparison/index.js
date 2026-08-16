@@ -4,7 +4,7 @@ import { JsonPathCodegen, JsonPathEval, JsonPathParser } from '@jsonjoy.com/json
 import { JSONPath } from 'jsonpath-plus';
 import { query as rfcQuery } from 'jsonpath-rfc9535';
 import parseRfc from 'jsonpath-rfc9535/parser';
-import { find, query } from '../../dist/index.js';
+import { find, query } from '../../lib/index.js';
 
 const require = createRequire(import.meta.url);
 const versions = {

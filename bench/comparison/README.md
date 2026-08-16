@@ -49,7 +49,7 @@ Then run from the repository root:
 npm run bench:comparison
 ```
 
-The command builds padvinder before benchmarking `dist/index.js`. Competitor
+The command benchmarks `lib/index.js` directly — there is no build. Competitor
 dependencies live under this directory, so a normal root install and CI do not
 install them.
 

@@ -1,13 +1,12 @@
 # Comparison benchmarks
 
-This manual suite compares padvinder's published build with JSONPath Plus,
-jsonpath-rfc9535, and the interpreted and JIT modes from
-@jsonjoy.com/json-path. It is for understanding performance trade-offs, not
-declaring a universal winner.
+This manual suite compares padvinder against JSONPath Plus, jsonpath-rfc9535,
+and the interpreted and JIT modes from @jsonjoy.com/json-path. It is for
+understanding performance trade-offs, not declaring a universal winner.
 
-## Results (2026-07-22)
+## Results (2026-08-16)
 
-One post-optimization run on Node v24.15.0, macOS arm64. Versions: padvinder 0.3.0,
+One run on Node v24.18.0, macOS arm64. Versions: padvinder 0.3.1,
 JSONPath Plus 10.4.0, jsonpath-rfc9535 1.3.0, and jsonjoy 18.28.0. Values
 are median operations per second; the parenthesized number is throughput
 relative to padvinder.
@@ -16,21 +15,21 @@ relative to padvinder.
 
 | Query | padvinder | JSONPath Plus | rfc9535 | jsonjoy eval | jsonjoy JIT |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Shallow | 191,314 (1.00x) | 121,571 (0.64x) | 284,242 (1.49x) | 984,425 (5.15x) | 245,257 (1.28x) |
-| Deep | 74,021 (1.00x) | 36,030 (0.49x) | 79,550 (1.07x) | 219,643 (2.97x) | 109,074 (1.47x) |
-| Conditional | 27,157 (1.00x) | 21,498 (0.79x) | 21,869 (0.81x) | 87,661 (3.23x) | 27,961 (1.03x) |
-| Descendant | 9,972 (1.00x) | 11,981 (1.20x) | 27,739 (2.78x) | 40,146 (4.03x) | 40,508 (4.06x) |
-| Compound | 19,393 (1.00x) | 15,959 (0.82x) | 15,442 (0.80x) | 61,321 (3.16x) | 14,594 (0.75x) |
+| Shallow | 207,020 (1.00x) | 130,007 (0.63x) | 290,175 (1.40x) | 974,872 (4.71x) | 246,418 (1.19x) |
+| Deep | 77,382 (1.00x) | 36,480 (0.47x) | 80,633 (1.04x) | 220,886 (2.85x) | 110,815 (1.43x) |
+| Conditional | 27,345 (1.00x) | 21,633 (0.79x) | 22,739 (0.83x) | 90,479 (3.31x) | 28,006 (1.02x) |
+| Descendant | 10,064 (1.00x) | 12,091 (1.20x) | 28,011 (2.78x) | 39,859 (3.96x) | 41,266 (4.10x) |
+| Compound | 19,516 (1.00x) | 15,730 (0.81x) | 16,272 (0.83x) | 61,355 (3.14x) | 14,376 (0.74x) |
 
 ### Hot run, 1,000 features
 
 | Query | padvinder | JSONPath Plus | rfc9535 | jsonjoy eval | jsonjoy JIT |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Shallow | 26,016 (1.00x) | 13,497 (0.52x) | 45,821 (1.76x) | 123,918 (4.76x) | 142,424 (5.47x) |
-| Deep | 8,911 (1.00x) | 3,784 (0.42x) | 9,784 (1.10x) | 23,169 (2.60x) | 25,546 (2.87x) |
-| Conditional | 3,098 (1.00x) | 2,413 (0.78x) | 2,668 (0.86x) | 10,268 (3.31x) | 16,490 (5.32x) |
-| Descendant | 998 (1.00x) | 1,194 (1.20x) | 2,866 (2.87x) | 3,999 (4.01x) | 4,756 (4.76x) |
-| Compound | 2,038 (1.00x) | 1,579 (0.77x) | 1,797 (0.88x) | 6,607 (3.24x) | 7,937 (3.89x) |
+| Shallow | 28,745 (1.00x) | 13,548 (0.47x) | 45,424 (1.58x) | 124,708 (4.34x) | 135,868 (4.73x) |
+| Deep | 9,358 (1.00x) | 3,696 (0.40x) | 9,813 (1.05x) | 23,339 (2.49x) | 25,586 (2.73x) |
+| Conditional | 3,155 (1.00x) | 2,418 (0.77x) | 2,672 (0.85x) | 10,282 (3.26x) | 16,537 (5.24x) |
+| Descendant | 999 (1.00x) | 1,203 (1.20x) | 2,889 (2.89x) | 3,956 (3.96x) | 4,762 (4.77x) |
+| Compound | 2,066 (1.00x) | 1,570 (0.76x) | 1,716 (0.83x) | 6,718 (3.25x) | 7,868 (3.81x) |
 
 The native-prepare diagnostic is omitted because the engine APIs do different
 amounts of work at that stage.

@@ -61,7 +61,7 @@
 		"rfc9535"
 	],
 	"dependencies": {
-		"treffer": "^0.2.0"
+		"treffer": "^0.3.0"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.18.3",

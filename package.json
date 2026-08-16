@@ -1,6 +1,6 @@
 {
 	"name": "padvinder",
-	"version": "0.3.1",
+	"version": "0.4.0",
 	"description": "Tiny, CSP-safe RFC 9535 JSONPath engine. No eval, no new Function.",
 	"repository": "getquario/padvinder",
 	"license": "Apache-2.0",

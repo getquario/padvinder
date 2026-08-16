@@ -26,7 +26,7 @@ test('compliance: valid selectors', () => {
 		const good = !threw && (c.results ? c.results.some(r => eq(out, r)) : eq(out, c.result));
 		if (DIALECT.has(c.name)) {
 			dialect++;
-			good && assert.fail('now conformant, remove from ledger: ' + c.name);
+			if (good) assert.fail('now conformant, remove from ledger: ' + c.name);
 		} else if (good) {
 			pass++;
 		} else {

@@ -24,7 +24,7 @@ const name = data => data.consumeIntegralInRange(0, 6) === 0 ? pick(data, BLOCKE
 const PATTERNS = ['a.*', '[a-z]+', 'fic', '^t-', 'Mob.', '('];
 
 // A ValueType operand for filters: a singular query, or a literal.
-function operand(data, depth) {
+function operand(data, _depth) {
 	const k = data.consumeIntegralInRange(0, 4);
 	if (k === 0) return String(data.consumeIntegralInRange(-5, 20));
 	if (k === 1) return JSON.stringify('t-a');

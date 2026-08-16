@@ -36,22 +36,23 @@
 	"scripts": {
 		"bench": "node --disallow-code-generation-from-strings bench/index.js",
 		"bench:comparison": "npm --prefix bench/comparison run bench",
-		"check": "run-s size test fuzz:regression test:browser",
+		"check": "run-s lint size test fuzz:regression test:browser",
 		"cts:update": "curl -sL -o test/cts.json https://raw.githubusercontent.com/jsonpath-standard/jsonpath-compliance-test-suite/main/cts.json && curl -sL -o test/cts.LICENSE https://raw.githubusercontent.com/jsonpath-standard/jsonpath-compliance-test-suite/main/LICENSE",
 		"fuzz": "npm run fuzz:prepare && run-s fuzz:compile fuzz:find fuzz:structured",
-		"fuzz:prepare": "node -e \"for (const x of ['compile','find','structured']) require('fs').mkdirSync('.fuzz-corpus/'+x,{recursive:true})\"",
 		"fuzz:compile": "NODE_OPTIONS=--disallow-code-generation-from-strings jazzer fuzz/compile.fuzz.js -i lib/ --customHooks fuzz/hooks.js --disableBugDetectors='command-injection|path-traversal' --sync .fuzz-corpus/compile fuzz/corpus/compile -- -max_total_time=60 -timeout=25 -use_value_profile=1 -dict=fuzz/padvinder.dict -artifact_prefix=fuzz/",
 		"fuzz:find": "NODE_OPTIONS=--disallow-code-generation-from-strings jazzer fuzz/find.fuzz.js -i lib/ --customHooks fuzz/hooks.js --disableBugDetectors='command-injection|path-traversal' --sync .fuzz-corpus/find fuzz/corpus/find -- -max_total_time=60 -timeout=25 -use_value_profile=1 -dict=fuzz/padvinder.dict -artifact_prefix=fuzz/",
-		"fuzz:structured": "NODE_OPTIONS=--disallow-code-generation-from-strings jazzer fuzz/structured.fuzz.js -i lib/ --customHooks fuzz/hooks.js --disableBugDetectors='command-injection|path-traversal' --sync .fuzz-corpus/structured fuzz/corpus/structured -- -max_total_time=60 -timeout=25 -use_value_profile=1 -dict=fuzz/padvinder.dict -artifact_prefix=fuzz/",
+		"fuzz:prepare": "node -e \"for (const x of ['compile','find','structured']) require('fs').mkdirSync('.fuzz-corpus/'+x,{recursive:true})\"",
 		"fuzz:regression": "run-s fuzz:regression:compile fuzz:regression:find fuzz:regression:structured",
 		"fuzz:regression:compile": "NODE_OPTIONS=--disallow-code-generation-from-strings jazzer fuzz/compile.fuzz.js -i lib/ --customHooks fuzz/hooks.js --disableBugDetectors='command-injection|path-traversal' --sync --mode=regression fuzz/corpus/compile -- -timeout=25 -artifact_prefix=fuzz/",
 		"fuzz:regression:find": "NODE_OPTIONS=--disallow-code-generation-from-strings jazzer fuzz/find.fuzz.js -i lib/ --customHooks fuzz/hooks.js --disableBugDetectors='command-injection|path-traversal' --sync --mode=regression fuzz/corpus/find -- -timeout=25 -artifact_prefix=fuzz/",
 		"fuzz:regression:structured": "NODE_OPTIONS=--disallow-code-generation-from-strings jazzer fuzz/structured.fuzz.js -i lib/ --customHooks fuzz/hooks.js --disableBugDetectors='command-injection|path-traversal' --sync --mode=regression fuzz/corpus/structured -- -timeout=25 -artifact_prefix=fuzz/",
+		"fuzz:structured": "NODE_OPTIONS=--disallow-code-generation-from-strings jazzer fuzz/structured.fuzz.js -i lib/ --customHooks fuzz/hooks.js --disableBugDetectors='command-injection|path-traversal' --sync .fuzz-corpus/structured fuzz/corpus/structured -- -max_total_time=60 -timeout=25 -use_value_profile=1 -dict=fuzz/padvinder.dict -artifact_prefix=fuzz/",
+		"lint": "oxlint --deny-warnings",
 		"size": "size-limit",
 		"test": "run-s test:unit test:types",
-		"test:unit": "node --disallow-code-generation-from-strings --test --test-concurrency=1 test/*.test.js",
 		"test:browser": "playwright install chromium && node test/browser/harness.js",
-		"test:types": "tsc && attw --pack . --profile esm-only"
+		"test:types": "tsc && attw --pack . --profile esm-only",
+		"test:unit": "node --disallow-code-generation-from-strings --test --test-concurrency=1 test/*.test.js"
 	},
 	"keywords": [
 		"jsonpath",
@@ -69,6 +70,7 @@
 		"@jazzer.js/core": "^4.0.0",
 		"@size-limit/preset-small-lib": "^12.1.0",
 		"npm-run-all": "^4.1.5",
+		"oxlint": "^1.78.0",
 		"playwright": "^1.61.1",
 		"size-limit": "^12.1.0",
 		"typescript": "7.0.2"

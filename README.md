@@ -13,23 +13,23 @@ A tiny, CSP-safe JSONPath engine for JavaScript. **~3KB min+gzip, one dependency
 	</picture>
 </a>
 
-*Padvinder* is Dutch for "pathfinder", and also what we call a scout. It implements RFC 9535 JSONPath, filters included, with a real parser instead of the generated code that filter evaluation usually relies on. There is no `eval` and no `new Function`, so a query cannot smuggle code into your application, and the engine runs under a strict Content Security Policy.
+_Padvinder_ is Dutch for "pathfinder", and also what we call a scout. It implements RFC 9535 JSONPath, filters included, with a real parser instead of the generated code that filter evaluation usually relies on. There is no `eval` and no `new Function`, so a query cannot smuggle code into your application, and the engine runs under a strict Content Security Policy.
 
 ```js
-import { query, find } from 'padvinder';
+import { query, find } from "padvinder";
 
 const data = {
   store: {
     book: [
-      { title: 'Sayings of the Century', price: 8.95, category: 'reference' },
-      { title: 'Sword of Honour', price: 12.99, category: 'fiction' },
-      { title: 'Moby Dick', price: 8.99, category: 'fiction' },
+      { title: "Sayings of the Century", price: 8.95, category: "reference" },
+      { title: "Sword of Honour", price: 12.99, category: "fiction" },
+      { title: "Moby Dick", price: 8.99, category: "fiction" },
     ],
   },
 };
 
 // One-shot:
-find('$..book[?@.price < 10].title', data);
+find("$..book[?@.price < 10].title", data);
 // => ['Sayings of the Century', 'Moby Dick']
 
 // Compile once, run many times:
@@ -37,7 +37,7 @@ const cheap = query('$.store.book[?@.price < 10 && @.category == "fiction"].titl
 cheap(data); // => ['Moby Dick']
 
 // Register your own filter functions:
-find('$..book[?sale(@)].title', data, { sale: b => b.price < 9 });
+find("$..book[?sale(@)].title", data, { sale: (b) => b.price < 9 });
 ```
 
 ## API
@@ -63,7 +63,7 @@ Traversal budgets are optional host controls. Without them, queries remain unlim
 
 ```js
 const options = { maxNodes: 10_000, maxDepth: 64, maxResults: 1_000 };
-find('$..book[*]', data, {}, options);
+find("$..book[*]", data, {}, options);
 ```
 
 Each value must be a non-negative safe integer. Exceeding a budget throws a `RangeError` with `code`, `limit`, and `actual` properties. Codes are `PADVINDER_MAX_NODES`, `PADVINDER_MAX_DEPTH`, and `PADVINDER_MAX_RESULTS`. A compiled runner starts with fresh counters on every call.
@@ -74,34 +74,34 @@ Errors from caller-provided coercion hooks, accessors, or function extensions pa
 
 ## Syntax
 
-| Selector | Meaning |
-| --- | --- |
-| `$` | The root |
-| `.name`, `['name']` | Child property |
-| `[0]`, `[-1]` | Array index, negatives count from the end |
-| `[1:3]`, `[:2]`, `[-2:]`, `[0:4:2]` | Array slice, with optional positive step |
-| `.*`, `[*]` | All children |
-| `..name` | Recursive descent: `name` anywhere below |
-| `[0,2]`, `['a','b']` | Union of selectors |
-| `[?expr]`, `[?(expr)]` | Keep children matching the filter (see below) |
+| Selector                            | Meaning                                       |
+| ----------------------------------- | --------------------------------------------- |
+| `$`                                 | The root                                      |
+| `.name`, `['name']`                 | Child property                                |
+| `[0]`, `[-1]`                       | Array index, negatives count from the end     |
+| `[1:3]`, `[:2]`, `[-2:]`, `[0:4:2]` | Array slice, with optional positive step      |
+| `.*`, `[*]`                         | All children                                  |
+| `..name`                            | Recursive descent: `name` anywhere below      |
+| `[0,2]`, `['a','b']`                | Union of selectors                            |
+| `[?expr]`, `[?(expr)]`              | Keep children matching the filter (see below) |
 
 ## Filters
 
-Filters follow the RFC 9535 grammar. Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), the logical operators `&&`, `||`, and `!`, and parentheses combine two kinds of operand: literals and *queries*. A bare query is an existence test, so `[?@.a]` keeps children that have an `a`, including a present `null`. A query used in a comparison is read for its value, and a missing path compares as "nothing" rather than throwing, so `[?@.a.b == 1]` is safe even when `a` is absent. `==` is deep structural equality.
+Filters follow the RFC 9535 grammar. Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), the logical operators `&&`, `||`, and `!`, and parentheses combine two kinds of operand: literals and _queries_. A bare query is an existence test, so `[?@.a]` keeps children that have an `a`, including a present `null`. A query used in a comparison is read for its value, and a missing path compares as "nothing" rather than throwing, so `[?@.a.b == 1]` is safe even when `a` is absent. `==` is deep structural equality.
 
 ```js
-find('$.store.book[?@.price < 10]', data);
-find('$.store.book[?@.price > $.store.bicycle.price]', data);           // $ is the root
+find("$.store.book[?@.price < 10]", data);
+find("$.store.book[?@.price > $.store.bicycle.price]", data); // $ is the root
 find('$.store.book[?@.category == "fiction" && @.price < 20]', data);
-find('$.store.book[?!@.sale]', data);
+find("$.store.book[?!@.sale]", data);
 ```
 
 Five functions ship built in: `length()`, `count()`, `value()`, and the regular-expression tests `match()` (full match) and `search()` (substring). Register your own for anything else, and call them from a filter with `@` as the current node:
 
 ```js
-find('$.book[?length(@.title) > 20]', data);
+find("$.book[?length(@.title) > 20]", data);
 find('$.book[?match(@.isbn, "[0-9]{13}")]', data);
-find('$.book[?luhn(@.code)]', data, { luhn: valid });                   // your function
+find("$.book[?luhn(@.code)]", data, { luhn: valid }); // your function
 ```
 
 `match()` and `search()` use [treffer](https://github.com/getquario/treffer), a bounded [RFC 9485 I-Regexp](https://www.rfc-editor.org/rfc/rfc9485.html) Thompson-NFA matcher. Matching does not backtrack. `^` and `$` are supported as anchors for compatibility with the JSONPath compliance suite. JavaScript-only syntax such as `\d`, lookarounds, backreferences, and lazy quantifiers is rejected; use `[0-9]` in place of `\d`.

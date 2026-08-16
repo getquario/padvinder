@@ -1,0 +1,10 @@
+{
+  "ignorePatterns": [
+    // Vendored verbatim from the JSONPath compliance test suite (BSD-2, see
+    // test/cts.LICENSE) and re-fetched by `npm run cts:update`. Formatting it
+    // would make `cts:update` fail `fmt:check` on the next run, and would
+    // destroy the ability to diff it against upstream to prove the
+    // conformance cases are untampered.
+    "test/cts.json"
+  ]
+}

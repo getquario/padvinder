@@ -164,8 +164,13 @@ test("runtime provenance is local to a module instance", async () => {
 });
 
 test("captured provenance operations resist prototype replacement", () => {
+  // Captured to restore in `finally`, never called — `unbound-method` reads the
+  // saving of a prototype method as the scoping hazard of calling one.
+  // oxlint-disable-next-line typescript/unbound-method
   const set = WeakMap.prototype.set;
+  // oxlint-disable-next-line typescript/unbound-method
   const get = WeakMap.prototype.get;
+  // oxlint-disable-next-line typescript/unbound-method
   const has = WeakMap.prototype.has;
   const run = query("$[*]", {}, { maxResults: 0 });
   try {

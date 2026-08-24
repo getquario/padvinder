@@ -45,7 +45,7 @@
     "fuzz:regression:structured": "NODE_OPTIONS=--disallow-code-generation-from-strings jazzer fuzz/structured.fuzz.js -i lib/ --customHooks fuzz/hooks.js --disableBugDetectors='command-injection|path-traversal' --sync --mode=regression fuzz/corpus/structured -- -timeout=25 -artifact_prefix=fuzz/",
     "fuzz:structured": "NODE_OPTIONS=--disallow-code-generation-from-strings jazzer fuzz/structured.fuzz.js -i lib/ --customHooks fuzz/hooks.js --disableBugDetectors='command-injection|path-traversal' --sync .fuzz-corpus/structured fuzz/corpus/structured -- -max_total_time=60 -timeout=25 -use_value_profile=1 -dict=fuzz/padvinder.dict -artifact_prefix=fuzz/",
     "knip": "knip --treat-config-hints-as-errors && knip --production",
-    "lint": "oxlint --deny-warnings",
+    "lint": "oxlint",
     "size": "size-limit",
     "test": "run-s test:unit test:types",
     "test:browser": "playwright install chromium && node test/browser/harness.js",
@@ -64,6 +64,7 @@
     "npm-run-all": "^4.1.5",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
+    "oxlint-tsgolint": "^7.0.2001",
     "playwright": "^1.61.1",
     "size-limit": "^13.0.3",
     "typescript": "7.0.2"

@@ -37,7 +37,7 @@ test("wildcards", () => {
     "J. R. R. Tolkien",
   ]);
   assert.deepStrictEqual(
-    find("$.store.*.price", data).sort(),
+    find("$.store.*.price", data).sort((a, b) => a - b),
     [19.95],
     "dot wildcard over object values",
   );
@@ -282,6 +282,9 @@ test("every authenticated Treffer failure category maps to false", () => {
 
 test("errors not authenticated by Treffer are not swallowed", () => {
   const run = query('$[?match(@, "a")]');
+  // Captured to restore in `finally`, never called — `unbound-method` reads the
+  // saving of a prototype method as the scoping hazard of calling one.
+  // oxlint-disable-next-line typescript/unbound-method
   const charCodeAt = String.prototype.charCodeAt;
   const spoof = Object.assign(Error("host failed"), { code: "TREFFER_SYNTAX" });
   try {

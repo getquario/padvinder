@@ -15,6 +15,16 @@ A tiny, CSP-safe JSONPath engine for JavaScript. **~3KB min+gzip, one dependency
 
 _Padvinder_ is Dutch for "pathfinder", and also what we call a scout. It implements RFC 9535 JSONPath, filters included, with a real parser instead of the generated code that filter evaluation usually relies on. There is no `eval` and no `new Function`, so a query cannot smuggle code into your application, and the engine runs under a strict Content Security Policy.
 
+## Install
+
+```bash
+npm install padvinder
+```
+
+Node.js 22 or newer, ESM only.
+
+## Usage
+
 ```js
 import { query, find } from "padvinder";
 
@@ -87,7 +97,7 @@ Errors from caller-provided coercion hooks, accessors, or function extensions pa
 
 ## Filters
 
-Filters follow the RFC 9535 grammar. Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), the logical operators `&&`, `||`, and `!`, and parentheses combine two kinds of operand: literals and _queries_. A bare query is an existence test, so `[?@.a]` keeps children that have an `a`, including a present `null`. A query used in a comparison is read for its value, and a missing path compares as "nothing" rather than throwing, so `[?@.a.b == 1]` is safe even when `a` is absent. `==` is deep structural equality.
+Filters follow the RFC 9535 grammar. Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), the logical operators `&&`, `||`, and `!`, and parentheses combine two kinds of operand: literals and _queries_. A bare query is an existence test, so `[?@.a]` keeps children that have an `a`, including a present `null`. A query used in a comparison is read for its value. A missing path compares as "nothing" and does not throw, so `[?@.a.b == 1]` is safe even when `a` is absent. `==` is deep structural equality.
 
 ```js
 find("$.store.book[?@.price < 10]", data);
@@ -117,13 +127,26 @@ This matters for JSONPath specifically because filter expressions are the classi
 ## Safety
 
 - Queries read the data you pass in and never modify it.
-- `__proto__`, `constructor`, and `prototype` never match, in paths or in filters. Prototype-chain properties are invisible: matching is own-properties only, so a filter like `[?@.constructor]` finds nothing rather than reaching `Object.prototype`.
+- `__proto__`, `constructor`, and `prototype` never match, in paths or in filters. Prototype-chain properties are invisible: matching is own-properties only, so a filter like `[?@.constructor]` finds nothing and never reaches `Object.prototype`.
 - I-Regexp matching uses bounded NFA simulation instead of a backtracking engine.
 - Registered functions resolve only from what you provide, and receive plain data values as arguments.
 
 ## Environments
 
-Node.js 22 and newer are supported through the ESM and CommonJS builds. Browser use is supported through a standards-based ESM bundler in environments supporting ES2024. Direct `<script>` globals and UMD builds are not provided.
+Node.js 22 and newer, ESM only. Browser use is supported through a standards-based ESM bundler in environments supporting ES2024. Direct `<script>` globals, UMD, and CommonJS builds are not provided.
+
+Shipping CommonJS alongside ESM would put two copies of the core in any process that mixed `require` and `import`. Each copy would have its own diagnostic identity, so `isDiagnostic` would return `false` across the seam.
+
+## Contributing
+
+```bash
+git clone https://github.com/getquario/padvinder.git
+cd padvinder
+npm install
+npm run check
+```
+
+`npm run check` is the local gate. Conventions for this repo live in [AGENTS.md](AGENTS.md).
 
 ## License
 

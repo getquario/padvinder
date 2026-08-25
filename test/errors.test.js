@@ -16,9 +16,15 @@ test("malformed paths", () => {
   assert.throws(() => query(""), /Path must start with \$/);
   assert.throws(() => query("$.store["), /Missing \]/);
   assert.throws(() => query("$.store[?(@.a"), /Missing \]/);
+  assert.throws(() => query("$[)]"), /Missing \]/, "a bare ) is not a bracket closer");
   assert.throws(() => query("$.store."), SyntaxError);
   assert.throws(() => query("$store"), SyntaxError, "name straight after $ needs a dot");
   assert.throws(() => query("$.store[!!]"), /Bad selector/);
+  assert.throws(
+    () => query('$["' + "\udc00" + '"]'),
+    SyntaxError,
+    "raw lone low surrogate in a name",
+  );
 });
 
 test("invalid quoted-string escapes fail at compile time", () => {
@@ -61,6 +67,17 @@ test("bad filter expressions fail at compile time", () => {
     () => query("$.a[?constructor(@)]"),
     /constructor is not a function/,
     "inherited name is not a built-in function",
+  );
+  assert.throws(
+    () => query('$[?length(match(@, "a"))]'),
+    SyntaxError,
+    "LogicalType cannot fill a ValueType argument",
+  );
+  assert.throws(() => query("$[?!@.a == 1]"), SyntaxError, "negation cannot wrap a comparison");
+  assert.throws(() => query("$[?@.a == 1#]"), SyntaxError, "trailing junk after a filter");
+  assert.doesNotThrow(
+    () => query("$[?foo()]", { foo: () => true }),
+    "zero-arg user functions are valid",
   );
 });
 

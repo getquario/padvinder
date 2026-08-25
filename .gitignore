@@ -1,4 +1,5 @@
 .fuzz-corpus/
+coverage/
 
 node_modules/
 

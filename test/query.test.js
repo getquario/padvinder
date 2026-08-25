@@ -410,17 +410,15 @@ test("introspection does not change execution or traversal budgets", () => {
   );
 });
 
+const budgetShape = (e, name, limit) =>
+  e.code === "PADVINDER_" + name.replace(/([A-Z])/g, "_$1").toUpperCase() &&
+  e.limit === limit &&
+  e.actual === limit + 1;
+const budgetError = (name, limit) => (e) =>
+  e instanceof RangeError && isDiagnostic(e) && budgetShape(e, name, limit);
+
 test("opt-in traversal budgets have exact boundaries", () => {
-  const check = (name, limit, run) =>
-    assert.throws(
-      run,
-      (e) =>
-        e instanceof RangeError &&
-        isDiagnostic(e) &&
-        e.code === "PADVINDER_" + name.replace(/([A-Z])/g, "_$1").toUpperCase() &&
-        e.limit === limit &&
-        e.actual === limit + 1,
-    );
+  const check = (name, limit, run) => assert.throws(run, budgetError(name, limit));
 
   assert.deepStrictEqual(find("$.a.b", { a: { b: 1 } }, {}, { maxNodes: 3 }), [1]);
   check("maxNodes", 2, () => find("$.a.b", { a: { b: 1 } }, {}, { maxNodes: 2 }));

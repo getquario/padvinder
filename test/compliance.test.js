@@ -16,35 +16,39 @@ const cts = JSON.parse(readFileSync(new URL("./cts.json", import.meta.url)));
 // ledger check flags it so the entry gets removed.
 const DIALECT = new Map();
 
+const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const isGood = (out, c, threw) =>
+  !threw && (c.results ? c.results.some((r) => eq(out, r)) : eq(out, c.result));
+const runCase = (c) => {
+  try {
+    return { out: query(c.selector)(c.document), threw: false };
+  } catch {
+    return { threw: true };
+  }
+};
+const tally = (c, good, acc) => {
+  if (DIALECT.has(c.name)) {
+    acc.dialect++;
+    if (good) assert.fail("now conformant, remove from ledger: " + c.name);
+    return;
+  }
+  if (good) acc.pass++;
+  else assert.fail(c.name + " | " + c.selector);
+};
+
 test("compliance: valid selectors", () => {
-  const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-  let pass = 0,
-    dialect = 0;
+  const acc = { pass: 0, dialect: 0 };
   for (const c of cts.tests) {
     if (c.invalid_selector) continue;
-    let out,
-      threw = false;
-    try {
-      out = query(c.selector)(c.document);
-    } catch {
-      threw = true;
-    }
-    const good = !threw && (c.results ? c.results.some((r) => eq(out, r)) : eq(out, c.result));
-    if (DIALECT.has(c.name)) {
-      dialect++;
-      if (good) assert.fail("now conformant, remove from ledger: " + c.name);
-    } else if (good) {
-      pass++;
-    } else {
-      assert.fail(c.name + " | " + c.selector);
-    }
+    const ran = runCase(c);
+    tally(c, isGood(ran.out, c, ran.threw), acc);
   }
   assert.strictEqual(
-    pass + dialect,
+    acc.pass + acc.dialect,
     cts.tests.filter((c) => !c.invalid_selector).length,
     "every valid case accounted for",
   );
-  assert.ok(true, pass + " conformant, " + dialect + " documented divergences");
+  assert.ok(true, acc.pass + " conformant, " + acc.dialect + " documented divergences");
 });
 
 test("compliance: invalid selectors", () => {

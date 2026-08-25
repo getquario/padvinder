@@ -77,21 +77,17 @@ test("invalid traversal options fail at compile time", () => {
   assert.deepStrictEqual(query("$", {}, null)(1), [1]);
 });
 
+const noBudgetFields = (e) =>
+  !Object.hasOwn(e, "code") && !Object.hasOwn(e, "limit") && !Object.hasOwn(e, "actual");
+const bareDiagnostic = (Type) => (e) => e instanceof Type && isDiagnostic(e) && noBudgetFields(e);
+
 test("padvinder-created errors are authenticated", () => {
   for (const [run, Type] of [
     [() => query("store.book"), SyntaxError],
     [() => query("$", {}, 1), TypeError],
     [() => query("$", {}, { maxDepth: -1 }), RangeError],
   ])
-    assert.throws(
-      run,
-      (e) =>
-        e instanceof Type &&
-        isDiagnostic(e) &&
-        !Object.hasOwn(e, "code") &&
-        !Object.hasOwn(e, "limit") &&
-        !Object.hasOwn(e, "actual"),
-    );
+    assert.throws(run, bareDiagnostic(Type));
 });
 
 test("diagnostic provenance cannot be copied", () => {

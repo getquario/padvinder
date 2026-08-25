@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { FuzzedDataProvider } from "@jazzer.js/core";
 import { isDiagnostic, query } from "../lib/index.js";
-import { FIXTURE, collect, snap } from "./lib.js";
+import { FIXTURE, assertReachable, collect, snap } from "./lib.js";
 
 const { nodes, leaves } = collect(FIXTURE);
 const before = snap(FIXTURE);
@@ -119,17 +119,6 @@ function buildMalformed(data) {
 }
 
 const isCompileErr = (e) => e instanceof SyntaxError && isDiagnostic(e);
-
-// A returned node must be a genuine location in FIXTURE.
-function assertReachable(out) {
-  for (const r of out) {
-    if (r !== null && typeof r === "object") {
-      if (!nodes.has(r)) throw new Error("result object is not a node of the data");
-    } else if (!leaves.has(r)) {
-      throw new Error("result primitive is not a leaf of the data");
-    }
-  }
-}
 
 // Element-wise identity (objects) / Object.is (primitives): two distinct nodes
 // that happen to be deep-equal must not be mistaken for a determinism pass.
@@ -316,7 +305,7 @@ export function fuzz(data) {
   }
   if (!Array.isArray(out)) throw new Error("query did not return an array");
 
-  assertReachable(out);
+  assertReachable(out, nodes, leaves);
   const second = run(FIXTURE);
   assert.ok(sameResult(out, second), "non-deterministic query: " + path);
   const meta = JSON.stringify(run.paths);

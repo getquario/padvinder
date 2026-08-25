@@ -95,3 +95,13 @@ export function collect(v, nodes = new Set(), leaves = new Set()) {
   }
   return { nodes, leaves };
 }
+
+export function assertReachable(out, nodes, leaves) {
+  for (const r of out) {
+    if (r !== null && typeof r === "object") {
+      if (!nodes.has(r)) throw new Error("result object is not a node of the data");
+    } else if (!leaves.has(r)) {
+      throw new Error("result primitive is not a leaf of the data");
+    }
+  }
+}

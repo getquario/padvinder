@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { FuzzedDataProvider } from "@jazzer.js/core";
 import { isDiagnostic, query } from "../lib/index.js";
-import { FIXTURE, assertReachable, collect, snap } from "./lib.js";
+import { FIXTURE, assertReachable, collect, isCompileErr, snap } from "./lib.js";
 
 const { nodes, leaves } = collect(FIXTURE);
 const before = snap(FIXTURE);
@@ -117,8 +117,6 @@ function buildMalformed(data) {
   if (k === 4) return base + "[!!]"; // bad selector
   return base + " &&"; // dangling operator
 }
-
-const isCompileErr = (e) => e instanceof SyntaxError && isDiagnostic(e);
 
 // Element-wise identity (objects) / Object.is (primitives): two distinct nodes
 // that happen to be deep-equal must not be mistaken for a determinism pass.

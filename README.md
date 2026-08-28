@@ -82,6 +82,34 @@ Errors created by padvinder keep their `SyntaxError`, `TypeError`, or `RangeErro
 
 Errors from caller-provided coercion hooks, accessors, or function extensions pass through unchanged. Package authentication still identifies where an error was created when caller code rethrows an authentic padvinder diagnostic, while `runner.isDiagnostic(error)` rejects it unless that runner created the runtime fault. The one-shot `find()` API does not expose its temporary runner; use `query()` when runner-scoped authentication is required.
 
+### Compile-time diagnostics
+
+A query that does not parse throws a `SyntaxError` carrying `code` — always `PADVINDER_SYNTAX` — and a span:
+
+- `start`: the zero-based offset into the query;
+- `end`: the exclusive offset.
+
+Spans are offsets into the query string you passed in, so `path.slice(start, end)` is the offending text. A fault inside a filter reports where it is in the whole query, not where it is in the filter: `$.a[?(nope(@))]` points at `nope`, not at offset 1 of the filter body. That holds however deep the fault is — a relative path inside a filter, a string literal inside that path, a filter nested inside another filter. A selector that does not parse spans that selector rather than the whole bracket, an unclosed bracket points at the bracket that was never closed, and a query that ends early gets an empty span at the end.
+
+Option faults are about the call rather than a place in the query, so the `TypeError` and `RangeError` they throw carry neither a code nor a span. Traversal budgets are exceeded at run time, where the query parsed fine; those keep `code`, `limit`, and `actual`, and have no span.
+
+### Relocating a diagnostic
+
+An embedder that reads queries out of a larger document — a `data` property in a report schema, a field in a config file — reports the fault in its own coordinates, not the query's. `relocate(diagnostic, { prefix, offset })` returns the copy to re-throw:
+
+```js
+import { isDiagnostic, query, relocate } from "padvinder";
+
+try {
+  query(schema.data);
+} catch (error) {
+  if (!isDiagnostic(error)) throw error;
+  throw relocate(error, { prefix: "data: " });
+}
+```
+
+The copy keeps the original's class, prepends `prefix` to the message verbatim, shifts `start` and `end` by `offset` when there is a span, and carries every other field across. It is registered exactly as the original was, so it passes `isDiagnostic` and — for a runtime fault — the runner's own `isDiagnostic` too. The original is left untouched. Relocation belongs here rather than in the embedder because authentication is by identity: a copy an embedder builds itself cannot be authenticated, and a field added to a diagnostic here would be a field the embedder's copy silently drops. Passing anything but a padvinder diagnostic throws a `TypeError`.
+
 ## Syntax
 
 | Selector                            | Meaning                                       |

@@ -7,6 +7,7 @@ export interface QueryOptions {
   maxResults?: number;
 }
 export type PadvinderErrorCode =
+  | "PADVINDER_SYNTAX"
   | "PADVINDER_MAX_NODES"
   | "PADVINDER_MAX_DEPTH"
   | "PADVINDER_MAX_RESULTS"
@@ -15,9 +16,26 @@ export interface PadvinderDiagnostic extends Error {
   readonly code?: PadvinderErrorCode;
   readonly limit?: number;
   readonly actual?: number;
+  /** Zero-based offset into the query. Compile-time diagnostics only. */
+  readonly start?: number;
+  /** Exclusive offset into the query. Compile-time diagnostics only. */
+  readonly end?: number;
 }
 /** Test whether an error was created by this padvinder module instance. */
 export function isDiagnostic(error: unknown): error is PadvinderDiagnostic;
+
+/**
+ * Copy a diagnostic into an embedder's coordinates: `prefix` is prepended to
+ * the message verbatim, `offset` shifts the span when there is one, every
+ * other field is carried over, and the copy is authenticated exactly as the
+ * original was.
+ *
+ * @throws {TypeError} When `diag` is not a diagnostic from this instance.
+ */
+export function relocate(
+  diag: unknown,
+  opts?: { prefix?: string; offset?: number },
+): PadvinderDiagnostic;
 
 export type QuerySelector =
   | readonly ["name", string]

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isDiagnostic, query } from "../lib/index.js";
+import { isDiagnostic, query, relocate } from "../lib/index.js";
 
 const caught = (run) => {
   try {
@@ -99,12 +99,22 @@ const noBudgetFields = (e) =>
 const bareDiagnostic = (Type) => (e) => e instanceof Type && isDiagnostic(e) && noBudgetFields(e);
 
 test("padvinder-created errors are authenticated", () => {
+  // Option faults are about the call, not about a place in the query, so they
+  // carry no code and no span; a syntax fault carries both.
   for (const [run, Type] of [
-    [() => query("store.book"), SyntaxError],
     [() => query("$", {}, 1), TypeError],
     [() => query("$", {}, { maxDepth: -1 }), RangeError],
   ])
     assert.throws(run, bareDiagnostic(Type));
+
+  assert.throws(
+    () => query("store.book"),
+    (e) =>
+      e instanceof SyntaxError &&
+      isDiagnostic(e) &&
+      e.code === "PADVINDER_SYNTAX" &&
+      !Object.hasOwn(e, "limit"),
+  );
 });
 
 test("diagnostic provenance cannot be copied", () => {
@@ -292,4 +302,114 @@ test("caller errors pass through unchanged", () => {
       })([1]),
   ])
     assert.throws(run, (e) => e === host && !isDiagnostic(e));
+});
+
+const span = (path) => {
+  const e = caught(() => query(path));
+  assert.ok(e instanceof SyntaxError);
+  assert.ok(isDiagnostic(e));
+  assert.strictEqual(e.code, "PADVINDER_SYNTAX");
+  return [e.start, e.end];
+};
+
+test("compile errors carry a code and a span in query coordinates", () => {
+  assert.deepStrictEqual(span("store.book"), [0, 1], "the character that should have been $");
+  assert.deepStrictEqual(span(""), [0, 0], "an empty query is an empty span");
+  assert.deepStrictEqual(span("$.store["), [7, 8], "an unclosed bracket points at the bracket");
+  assert.deepStrictEqual(span("$.store."), [8, 8], "a trailing dot ends the query early");
+  assert.deepStrictEqual(span("$store"), [1, 2], "the character that needed a dot before it");
+  assert.deepStrictEqual(span("$.store[!!]"), [8, 10], "a bad selector spans the selector");
+  assert.deepStrictEqual(span("$.a[?(@.x >)]"), [11, 11], "a filter fault is in query coordinates");
+  assert.deepStrictEqual(span("$.a[?(nope(@))]"), [6, 10], "an unknown function spans its name");
+});
+
+test("spans stay in query coordinates however deep the fault is", () => {
+  const offender = (path) => path.slice(...span(path));
+
+  // The relative path inside a filter is parsed by the same path parser as the
+  // query itself, on filter-local text; its faults still come back in query
+  // coordinates.
+  assert.strictEqual(offender("$.a[?(@.b[!!])]"), "!!", "a bad selector inside a filter");
+  assert.strictEqual(offender("$.a[?(@.-)]"), "-", "a bad path character inside a filter");
+  assert.strictEqual(offender("$.a[?(@['\\q'])]"), "'\\q'", "a bad string literal inside a filter");
+  // A nested filter is at an offset within the filter that contains it.
+  assert.strictEqual(offender("$.a[?(@.b[?(nope(@))])]"), "nope", "a fault in a nested filter");
+  // Parsing trims, but the caller's string is what the offsets index into.
+  assert.strictEqual(offender("   $.store["), "[", "leading whitespace does not shift a span");
+});
+
+test("relocate returns an authenticated copy in the embedder's coordinates", () => {
+  const original = caught(() => query("$.store["));
+  const moved = relocate(original, { prefix: "data: ", offset: 6 });
+
+  assert.ok(moved instanceof SyntaxError);
+  assert.strictEqual(moved.message, "data: " + original.message);
+  assert.strictEqual(moved.code, "PADVINDER_SYNTAX");
+  assert.deepStrictEqual([moved.start, moved.end], [13, 14]);
+  assert.ok(isDiagnostic(moved));
+  assert.deepStrictEqual([original.start, original.end], [7, 8], "the original is left untouched");
+});
+
+test("relocate preserves the runner origin of a runtime diagnostic", () => {
+  const run = query("$..a", {}, { maxNodes: 1 });
+  const original = caught(() => run({ a: { a: 1 } }));
+
+  const moved = relocate(original, { prefix: "data: " });
+  assert.ok(run.isDiagnostic(moved), "still recognized by the runner that threw it");
+  assert.strictEqual(moved.code, original.code);
+  assert.strictEqual(moved.limit, original.limit);
+  assert.ok(!Object.hasOwn(moved, "start"), "a budget diagnostic has no span to shift");
+});
+
+test("relocate defaults to no prefix and no shift", () => {
+  const original = caught(() => query("$.store["));
+  const moved = relocate(original);
+
+  assert.strictEqual(moved.message, original.message);
+  assert.deepStrictEqual([moved.start, moved.end], [original.start, original.end]);
+  assert.ok(isDiagnostic(moved));
+});
+
+test("relocate refuses anything that is not a padvinder diagnostic", () => {
+  const spoof = Object.assign(SyntaxError("spoof"), {
+    code: "PADVINDER_SYNTAX",
+    start: 0,
+    end: 1,
+  });
+  for (const value of [null, undefined, 1, "PADVINDER_SYNTAX", {}, SyntaxError("host"), spoof])
+    assert.throws(() => relocate(value), TypeError);
+});
+
+test("relocate does not mint a diagnostic through a replaced constructor", () => {
+  const d = caught(() => query("$.store["));
+  const real = SyntaxError.prototype.constructor;
+  try {
+    SyntaxError.prototype.constructor = function () {
+      return { pwned: true };
+    };
+    const moved = relocate(d, { prefix: "x: " });
+    assert.ok(moved instanceof SyntaxError, "the class comes from a captured table");
+    assert.ok(!Object.hasOwn(moved, "pwned"));
+    assert.ok(isDiagnostic(moved));
+  } finally {
+    SyntaxError.prototype.constructor = real;
+  }
+});
+
+test("relocate degrades to a plain Error when the original's prototype was replaced", () => {
+  const d = caught(() => query("$.store["));
+  Object.setPrototypeOf(d, Object.create(null));
+
+  const moved = relocate(d, { prefix: "x: " });
+  assert.ok(moved instanceof Error, "an unrecognized class falls back to Error");
+  assert.ok(isDiagnostic(moved), "and is still authenticated");
+});
+
+test("relocate keeps an option fault a TypeError", () => {
+  const d = caught(() => query("$", {}, 1));
+  const moved = relocate(d, { prefix: "data: " });
+
+  assert.ok(moved instanceof TypeError);
+  assert.ok(isDiagnostic(moved));
+  assert.ok(!Object.hasOwn(moved, "start"), "an option fault is not a place in the query");
 });

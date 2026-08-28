@@ -323,15 +323,15 @@ test("compile errors carry a code and a span in query coordinates", () => {
   assert.deepStrictEqual(span("$.a[?(nope(@))]"), [6, 10], "an unknown function spans its name");
 });
 
-test("spans stay in query coordinates however deep the fault is", () => {
-  const offender = (path) => path.slice(...span(path));
+const offender = (path) => path.slice(...span(path));
 
+test("spans stay in query coordinates however deep the fault is", () => {
   // The relative path inside a filter is parsed by the same path parser as the
   // query itself, on filter-local text; its faults still come back in query
   // coordinates.
   assert.strictEqual(offender("$.a[?(@.b[!!])]"), "!!", "a bad selector inside a filter");
   assert.strictEqual(offender("$.a[?(@.-)]"), "-", "a bad path character inside a filter");
-  assert.strictEqual(offender("$.a[?(@['\\q'])]"), "'\\q'", "a bad string literal inside a filter");
+  assert.strictEqual(offender("$.a[?(@['\\q'])]"), "\\q", "a bad escape inside a filter literal");
   // A nested filter is at an offset within the filter that contains it.
   assert.strictEqual(offender("$.a[?(@.b[?(nope(@))])]"), "nope", "a fault in a nested filter");
   // Parsing trims, but the caller's string is what the offsets index into.
@@ -412,4 +412,26 @@ test("relocate keeps an option fault a TypeError", () => {
   assert.ok(moved instanceof TypeError);
   assert.ok(isDiagnostic(moved));
   assert.ok(!Object.hasOwn(moved, "start"), "an option fault is not a place in the query");
+});
+
+test("string-literal faults point at the offending escape or character", () => {
+  assert.strictEqual(offender("$['a\\qb']"), "\\q", "an unknown escape spans backslash and char");
+  assert.strictEqual(offender("$['a\\u12Gb']"), "\\u12Gb", "a bad hex quad spans the whole escape");
+  assert.strictEqual(
+    offender("$['\\u12']"),
+    "\\u12",
+    "a truncated escape stops at the closing quote",
+  );
+  assert.strictEqual(
+    offender("$['a\\udc00b']"),
+    "\\udc00",
+    "a lone low surrogate escape spans itself",
+  );
+  assert.strictEqual(
+    offender("$['a\\ud800bc']"),
+    "\\ud800",
+    "a high surrogate needing a pair points at itself",
+  );
+  assert.strictEqual(offender("$['a\ud800b']"), "\ud800", "a raw lone surrogate points at itself");
+  assert.strictEqual(offender('$["a\u0001b"]'), "\u0001", "a control character points at itself");
 });

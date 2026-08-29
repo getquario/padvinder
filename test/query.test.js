@@ -222,8 +222,21 @@ test("I-Regexp grammar and Unicode semantics", () => {
   );
 });
 
-test("invalid or over-budget I-Regexp patterns match nothing", () => {
-  const run = (p) => find("$[?match(@, " + JSON.stringify(p) + ")]", ["a", "aaa"]);
+// Curried like budgetError below: instance, provenance, message, and the span
+// of the pattern literal, in one predicate all three literal-fault sites share.
+const patternFault = (at, len) => (e) =>
+  e instanceof SyntaxError &&
+  isDiagnostic(e) &&
+  /I-Regexp/.test(e.message) &&
+  patternSpan(e, at, len);
+const patternSpan = (e, at, len) =>
+  e.code === "PADVINDER_SYNTAX" && e.start === at && e.end === at + len;
+
+test("an invalid literal pattern is a located compile fault", () => {
+  const bad = (p, lit = JSON.stringify(p)) => {
+    const q = "$[?match(@, " + lit + ")]";
+    assert.throws(() => query(q), patternFault(q.indexOf(lit), lit.length), p);
+  };
   for (const p of [
     "\\d+",
     "(?=a)",
@@ -235,12 +248,43 @@ test("invalid or over-budget I-Regexp patterns match nothing", () => {
     "[z-a]",
     "a{1025}",
     "(".repeat(65) + "a" + ")".repeat(65),
-  ]) {
+    "a".repeat(4097),
+    "a{0001024}",
+  ])
+    bad(p);
+  assert.throws(
+    () => query("$[?search(@, '(')]"),
+    patternFault(13, 3),
+    "search validates too, single-quoted literals included",
+  );
+  const nested = '$.rows[?@.items[?match(@.x, "(")]]';
+  assert.throws(
+    () => query(nested),
+    patternFault(nested.indexOf('"'), 3),
+    "a literal in a nested filter locates through the composed base",
+  );
+  assert.deepStrictEqual(
+    find("$[?match(@, 1)]", ["a"]),
+    [],
+    "a non-string pattern literal stays a soft row-time false",
+  );
+});
+
+test("invalid patterns from data still match nothing", () => {
+  const run = (p) => find("$.values[?match(@, $.p)]", { values: ["a", "aaa"], p });
+  for (const p of ["\\d+", "(", "a{1025}", "a".repeat(4097)]) {
     assert.deepStrictEqual(run(p), [], p);
   }
+  assert.deepStrictEqual(
+    find("$.values[?match(@, $.p)]", { values: ["a"], p: "a" }),
+    ["a"],
+    "a valid data pattern still matches",
+  );
+});
+
+test("runtime-budget and edge I-Regexp behavior stays soft", () => {
+  const run = (p, values = ["a", "aaa"]) => find("$[?match(@, " + JSON.stringify(p) + ")]", values);
   assert.throws(() => run("\ud800"), SyntaxError, "lone surrogate is not a valid filter string");
-  assert.deepStrictEqual(run("a".repeat(4097)), [], "pattern length cap");
-  assert.deepStrictEqual(run("a{0001024}"), [], "quantifier digit cap");
   assert.deepStrictEqual(
     run("(".repeat(64) + "a" + ")".repeat(64)),
     ["a"],
@@ -263,8 +307,8 @@ test("invalid or over-budget I-Regexp patterns match nothing", () => {
   );
 });
 
-test("every authenticated Treffer failure category maps to false", () => {
-  const run = (p, values = ["a"]) => find("$[?match(@, " + JSON.stringify(p) + ")]", values);
+test("every authenticated Treffer failure category maps to false for data patterns", () => {
+  const run = (p, values = ["a"]) => find("$.values[?match(@, $.p)]", { values, p });
   for (const [name, pattern] of [
     ["syntax", "("],
     ["pattern scalars", "[" + "a".repeat(4095) + "]"],
@@ -275,8 +319,9 @@ test("every authenticated Treffer failure category maps to false", () => {
   ])
     assert.deepStrictEqual(run(pattern), [], name);
 
-  assert.deepStrictEqual(run("a*", ["a".repeat(1_000_001)]), [], "subject scalars");
-  assert.deepStrictEqual(run("[" + "b".repeat(4093) + "]", ["a".repeat(1000)]), [], "transitions");
+  const lit = (p, values) => find("$[?match(@, " + JSON.stringify(p) + ")]", values);
+  assert.deepStrictEqual(lit("a*", ["a".repeat(1_000_001)]), [], "subject scalars");
+  assert.deepStrictEqual(lit("[" + "b".repeat(4093) + "]", ["a".repeat(1000)]), [], "transitions");
   assert.deepStrictEqual(run("("), [], "cached compile failure remains false");
 });
 
@@ -288,12 +333,20 @@ test("errors not authenticated by Treffer are not swallowed", () => {
   const charCodeAt = String.prototype.charCodeAt;
   const spoof = Object.assign(Error("host failed"), { code: "TREFFER_SYNTAX" });
   try {
-    String.prototype.charCodeAt = () => {
-      throw spoof;
+    String.prototype.charCodeAt = function (...args) {
+      // Targeted: only the treffer-compiled pattern trips, so padvinder's own
+      // parsing (which also reads char codes) is not the frame that throws.
+      if (this == "a" || this == "zq") throw spoof;
+      return charCodeAt.apply(this, args);
     };
     assert.throws(
       () => run(["a"]),
       (e) => e === spoof,
+    );
+    assert.throws(
+      () => query('$[?match(@, "zq")]'),
+      (e) => e === spoof,
+      "the compile-time literal check rethrows unauthenticated errors too",
     );
   } finally {
     String.prototype.charCodeAt = charCodeAt;

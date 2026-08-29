@@ -146,7 +146,7 @@ find("$.book[?luhn(@.code)]", data, { luhn: valid }); // your function
 
 `match()` and `search()` use [treffer](https://github.com/getquario/treffer), a bounded [RFC 9485 I-Regexp](https://www.rfc-editor.org/rfc/rfc9485.html) Thompson-NFA matcher. Matching does not backtrack. `^` and `$` are supported as anchors for compatibility with the JSONPath compliance suite. JavaScript-only syntax such as `\d`, lookarounds, backreferences, and lazy quantifiers is rejected; use `[0-9]` in place of `\d`.
 
-Treffer enforces its documented pattern, subject, NFA, and work limits. padvinder authenticates errors created by Treffer and maps its syntax and resource diagnostics to no match, as required by RFC 9535. Unexpected errors are not misclassified or swallowed. See [Treffer's documentation](https://github.com/getquario/treffer#errors-and-limits) for the current codes, limits, and complexity bounds.
+Treffer enforces its documented pattern, subject, NFA, and work limits. A pattern written as a **string literal in the query** is compiled when the query compiles: an invalid or resource-limited literal throws a located `SyntaxError` at the pattern, because a typo in the query text is an authoring fault, not data. A pattern that **arrives from data** keeps RFC 9535 semantics: padvinder authenticates errors created by Treffer and maps its syntax and resource diagnostics to no match at row time. Unexpected errors are not misclassified or swallowed. See [Treffer's documentation](https://github.com/getquario/treffer#errors-and-limits) for the current codes, limits, and complexity bounds.
 
 ## Content Security Policy
 

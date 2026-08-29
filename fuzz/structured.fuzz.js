@@ -176,7 +176,19 @@ function sameResult(a, b) {
   eq('$.s[?match(@, "b")]', { s: ["abc"] }, [], "match must be anchored (full)");
   eq('$.s[?search(@, "b")]', { s: ["abc"] }, ["abc"], "search is substring");
   eq('$.s[?match(@, ".")]', { s: ["a\nb"] }, [], "I-Regexp dot excludes newline; full-match fails");
-  eq('$.s[?search(@, "(")]', { s: ["a"] }, [], "invalid pattern -> no match, no throw");
+  // A literal invalid pattern is a loud located compile fault now; the soft
+  // no-match path is the data-sourced pattern's.
+  assert.throws(
+    () => query('$.s[?search(@, "(")]'),
+    (e) => isCompileErr(e) && /I-Regexp/.test(e.message),
+    "invalid literal pattern -> located compile fault",
+  );
+  eq(
+    "$.s[?search(@, $.p)]",
+    { s: ["a"], p: "(" },
+    [],
+    "invalid data pattern -> no match, no throw",
+  );
   eq('$.s[?match(@, "a")]', { s: [123] }, [], "non-string subject -> no match");
   for (const p of [
     "(".repeat(65) + "a" + ")".repeat(65),
@@ -185,12 +197,7 @@ function sameResult(a, b) {
     "a".repeat(4096),
     "[" + "a".repeat(4095) + "]",
   ])
-    eq(
-      "$.s[?match(@, " + JSON.stringify(p) + ")]",
-      { s: ["a"] },
-      [],
-      "resource diagnostic -> no match",
-    );
+    eq("$.s[?match(@, $.p)]", { s: ["a"], p }, [], "resource diagnostic -> no match");
 })();
 
 (function stringBattery() {
@@ -295,8 +302,16 @@ export function fuzz(data) {
     run = query(path, FUNCS);
   } catch (e) {
     if (!isCompileErr(e)) throw e;
-    // VALID paths must compile; only MALFORMED ones may throw SyntaxError.
-    if (!malformed) throw new Error("valid generated path rejected: " + path + " :: " + e.message);
+    // VALID paths must compile; only MALFORMED ones may throw SyntaxError —
+    // except the deliberately invalid literal pattern "(" the generator weaves
+    // into match/search, which is a loud located compile fault by design. The
+    // guard is scoped to that argument position, so a "(" name selector or
+    // comparison literal cannot excuse an unrelated compile regression.
+    if (
+      !malformed &&
+      !(/(?:match|search)\([^()]*, "\("\)/.test(path) && /I-Regexp/.test(e.message))
+    )
+      throw new Error("valid generated path rejected: " + path + " :: " + e.message);
     return;
   }
 

@@ -135,21 +135,35 @@ test("I-Regexp matching has bounded worst-case work", () => {
   const text = "a".repeat(n) + "!";
   const t0 = Date.now();
 
-  assert.deepStrictEqual(find('$[?search(@, "(a+)+$")]', [text]), [], "nested repetition");
+  // Data-sourced: a literal catastrophic pattern is now a loud compile fault
+  // (query.test.js pins that); the bounded-work property under test is the
+  // soft row-time path.
+  assert.deepStrictEqual(
+    find("$.texts[?search(@, $.p)]", { texts: [text], p: "(a+)+$" }),
+    [],
+    "nested repetition",
+  );
   assert.deepStrictEqual(
     find('$[?match(@, "(a*)*")]', ["a".repeat(n)]),
     ["a".repeat(n)],
     "nullable cycle",
   );
   assert.deepStrictEqual(find('$[?search(@, "(a|aa)+$")]', [text]), [], "ambiguous alternation");
-  assert.deepStrictEqual(find('$[?match(@, "a{1000000}")]', ["a"]), [], "huge range rejected");
+  assert.deepStrictEqual(
+    find("$.values[?match(@, $.p)]", { values: ["a"], p: "a{1000000}" }),
+    [],
+    "huge range rejected",
+  );
   assert.deepStrictEqual(
     find("$[?search(@, " + JSON.stringify("[" + "b".repeat(4093) + "]") + ")]", [text]),
     [],
     "class work cap",
   );
   assert.deepStrictEqual(
-    find('$[?match(@, "a{1024}a{1024}a{1024}a{1024}")]', Array(5000).fill("a")),
+    find("$.values[?match(@, $.p)]", {
+      values: Array(5000).fill("a"),
+      p: "a{1024}a{1024}a{1024}a{1024}",
+    }),
     [],
     "invalid pattern cache",
   );

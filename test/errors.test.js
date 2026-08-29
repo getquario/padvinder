@@ -87,7 +87,7 @@ test("invalid traversal options fail at compile time", () => {
     ["maxNodes", "1", TypeError],
     ["maxDepth", -1, RangeError],
     ["maxResults", 1.5, RangeError],
-    ["maxNodes", Infinity, RangeError],
+    ["maxNodes", -Infinity, RangeError],
   ])
     assert.throws(() => query("$", {}, { [name]: value }), type);
   assert.throws(() => query("$", {}, { maxNode: 1 }), /Unknown option/);

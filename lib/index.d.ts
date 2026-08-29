@@ -1,5 +1,8 @@
 /**
- * Optional per-execution traversal budgets.
+ * Optional per-execution traversal budgets. `maxDepth` defaults to 500 so a
+ * deep untrusted document throws a typed diagnostic instead of overflowing
+ * the native stack; the other two default to unbounded. An explicit
+ * `Infinity` opts any budget out.
  */
 export interface QueryOptions {
   maxNodes?: number;
@@ -50,6 +53,12 @@ export interface QueryRunner {
   (data?: any): any[];
   readonly functions: readonly string[];
   readonly paths: readonly QueryPath[];
+  /**
+   * Whether this is a singular query per RFC 9535 — every segment selects at
+   * most one node, so the whole query selects at most one. What a consumer
+   * asks before binding a result as a scalar rather than a list.
+   */
+  readonly singular: boolean;
   /** Test whether a runtime diagnostic was created by this runner. */
   isDiagnostic(error: unknown): error is PadvinderDiagnostic;
 }

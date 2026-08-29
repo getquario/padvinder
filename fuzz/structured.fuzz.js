@@ -263,7 +263,13 @@ function sameResult(a, b) {
     leaf = { v: 9 };
   let deep = root;
   for (let j = 0; j < 20_000; j++) deep = deep.next = j === 19_999 ? leaf : {};
-  assert.deepStrictEqual(query("$..v")(root), [9], "deep descent exhausted the call stack");
+  // maxDepth: Infinity opts out of the 500 default — the descent itself must
+  // be iterative, not saved by the budget.
+  assert.deepStrictEqual(
+    query("$..v", {}, { maxDepth: Infinity })(root),
+    [9],
+    "deep descent exhausted the call stack",
+  );
 })();
 
 const OP = Object.prototype;

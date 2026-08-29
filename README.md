@@ -63,20 +63,22 @@ The runner exposes deeply frozen compile-time metadata:
 
 Dynamic tuples describe selection topology, not exact field locations or a lossless query AST. Filter predicate text and parent links for embedded queries are intentionally omitted; selector order and union duplicates are preserved.
 
+The runner also exposes `singular`: `true` when the query is a singular query per RFC 9535 — every segment selects at most one node, so the whole query selects at most one. A consumer asks it before binding a result as a scalar rather than a list.
+
 The runner also exposes `isDiagnostic(error)`. This narrower predicate returns `true` only for runtime traversal-budget errors created by that compiled runner. Repeated calls share the runner origin; another runner, even from the same module instance, does not authenticate the error.
 
 ### `find(path, data, functions?, options?)`
 
 Shorthand for `query(path, functions)(data)`.
 
-Traversal budgets are optional host controls. Without them, queries remain unlimited. `maxNodes` bounds locations visited across the main query and filter subqueries, `maxDepth` bounds child edges from each query start at depth zero, and `maxResults` bounds the final nodelist of each main or embedded query:
+Traversal budgets are host controls. `maxNodes` bounds locations visited across the main query and filter subqueries, `maxDepth` bounds child edges from each query start at depth zero, and `maxResults` bounds the final nodelist of each main or embedded query. **`maxDepth` defaults to 500** — safety by construction, so a deep untrusted document throws a typed diagnostic instead of overflowing the native stack; the other two default to unbounded:
 
 ```js
 const options = { maxNodes: 10_000, maxDepth: 64, maxResults: 1_000 };
 find("$..book[*]", data, {}, options);
 ```
 
-Each value must be a non-negative safe integer. Exceeding a budget throws a `RangeError` with `code`, `limit`, and `actual` properties. Codes are `PADVINDER_MAX_NODES`, `PADVINDER_MAX_DEPTH`, and `PADVINDER_MAX_RESULTS`. A compiled runner starts with fresh counters on every call.
+Each value must be a non-negative safe integer, or `Infinity` — the deliberate spelling for "this budget, unbounded" (`maxDepth: Infinity` restores the old no-limit depth). Exceeding a budget throws a `RangeError` with `code`, `limit`, and `actual` properties. Codes are `PADVINDER_MAX_NODES`, `PADVINDER_MAX_DEPTH`, and `PADVINDER_MAX_RESULTS`. A compiled runner starts with fresh counters on every call.
 
 Errors created by padvinder keep their `SyntaxError`, `TypeError`, or `RangeError` class. Use the exported `isDiagnostic(error)` to authenticate package origin. The check is local to one installed module instance: copied properties and errors from another copy do not pass. It covers compile-time diagnostics, for which no runner is returned, and runtime diagnostics from every runner in that module instance.
 

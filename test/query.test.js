@@ -431,6 +431,48 @@ test("opt-in traversal budgets have exact boundaries", () => {
   assert.deepStrictEqual(find("$[*]", [], {}, { maxResults: 0 }), []);
 });
 
+test("depth is budgeted by default: deep data throws typed, not a stack overflow", () => {
+  let deep = { v: 0 };
+  for (let i = 0; i < 5000; i++) deep = { c: deep };
+  assert.throws(
+    () => find("$..*", deep),
+    budgetError("maxDepth", 500),
+    "no options at all still caps depth at 500",
+  );
+  assert.deepStrictEqual(find("$.a.b", { a: { b: 1 } }), [1], "shallow queries are unaffected");
+  assert.throws(
+    () => find("$..*", deep, {}, { maxNodes: 1e6 }),
+    budgetError("maxDepth", 500),
+    "other explicit budgets keep the depth default",
+  );
+});
+
+test("an explicit Infinity opts a budget out", () => {
+  let deep = { v: 0 };
+  for (let i = 0; i < 600; i++) deep = { c: deep };
+  assert.strictEqual(
+    find("$..v", deep, {}, { maxDepth: Infinity }).length,
+    1,
+    "unbounded depth is a deliberate spelling, past the 500 default",
+  );
+  assert.deepStrictEqual(
+    find("$[*]", [1, 2], {}, { maxResults: Infinity, maxNodes: Infinity }),
+    [1, 2],
+    "Infinity is a valid spelling for every budget",
+  );
+});
+
+test("a compiled query knows whether it is singular", () => {
+  assert.strictEqual(query("$").singular, true, "the root alone selects one node");
+  assert.strictEqual(query("$.a.b").singular, true, "name segments stay singular");
+  assert.strictEqual(query("$.a[0]").singular, true, "an index selector is singular");
+  assert.strictEqual(query("$['a']").singular, true, "a quoted name is singular");
+  assert.strictEqual(query("$[*]").singular, false, "a wildcard is not");
+  assert.strictEqual(query("$..a").singular, false, "descendants are not");
+  assert.strictEqual(query("$.a[1:3]").singular, false, "slices are not");
+  assert.strictEqual(query("$.rows[?@.on]").singular, false, "filters are not");
+});
+
 test("filter subqueries share node budgets and reset depth", () => {
   const input = { rows: [{ a: { b: 1 } }, { a: { b: 2 } }] };
   assert.deepStrictEqual(
@@ -512,5 +554,7 @@ test("recursive descent is stack-safe on deep chains", () => {
     leaf = { value: "deep" };
   let node = root;
   for (let j = 0; j < 20_000; j++) node = node.next = j === 19_999 ? leaf : {};
-  assert.deepStrictEqual(find("$..value", root), ["deep"]);
+  // Opting out of the default depth budget is exactly what this pin needs:
+  // the descent itself must be iterative, not saved by the budget.
+  assert.deepStrictEqual(find("$..value", root, {}, { maxDepth: Infinity }), ["deep"]);
 });

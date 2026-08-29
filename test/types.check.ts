@@ -19,9 +19,11 @@ if (step?.[0] === "name") {
 
 const results: any[] = run({});
 const functions: readonly string[] = run.functions;
+const singular: boolean = run.singular;
 void anchor;
 void results;
 void functions;
+void singular;
 
 const failure: unknown = null;
 if (isDiagnostic(failure)) {

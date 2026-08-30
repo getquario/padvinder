@@ -14,10 +14,17 @@ const CSP = [
   "form-action 'none'",
 ].join("; ");
 
-const built = (await readFile(new URL("../../lib/index.js", import.meta.url), "utf8")).replace(
-  /from\s*["']treffer["']/,
-  'from"/treffer.js"',
-);
+const built = (await readFile(new URL("../../lib/index.js", import.meta.url), "utf8"))
+  .replace(/from\s*["']treffer["']/g, 'from"/treffer.js"')
+  .replace(/from\s*["']waarmerk["']/g, 'from"/waarmerk.js"');
+
+// Treffer imports waarmerk too, so the dependency it is served as needs the same
+// rewrite before the browser sees it.
+const dependency = async (name) =>
+  (await readFile(new URL(import.meta.resolve(name)), "utf8")).replace(
+    /from\s*["']waarmerk["']/g,
+    'from"/waarmerk.js"',
+  );
 const files = new Map([
   ["/", ["text/html; charset=utf-8", await readFile(new URL("./index.html", import.meta.url))]],
   [
@@ -27,10 +34,8 @@ const files = new Map([
   ["/lib/index.js", ["text/javascript; charset=utf-8", built]],
   // Resolved through the exports map rather than a hardcoded path, so this
   // keeps working whichever directory treffer publishes its entry from.
-  [
-    "/treffer.js",
-    ["text/javascript; charset=utf-8", await readFile(new URL(import.meta.resolve("treffer")))],
-  ],
+  ["/treffer.js", ["text/javascript; charset=utf-8", await dependency("treffer")]],
+  ["/waarmerk.js", ["text/javascript; charset=utf-8", await dependency("waarmerk")]],
 ]);
 
 const server = http.createServer((request, response) => {

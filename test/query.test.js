@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { isDiagnostic as isPattern } from "treffer";
 import { find, isDiagnostic, query } from "../lib/index.js";
 
 const data = {
@@ -222,36 +223,50 @@ test("I-Regexp grammar and Unicode semantics", () => {
   );
 });
 
-// Curried like budgetError below: instance, provenance, message, and the span
-// of the pattern literal, in one predicate all three literal-fault sites share.
-const patternFault = (at, len) => (e) =>
-  e instanceof SyntaxError &&
-  isDiagnostic(e) &&
-  /I-Regexp/.test(e.message) &&
-  patternSpan(e, at, len);
-const patternSpan = (e, at, len) =>
-  e.code === "PADVINDER_SYNTAX" && e.start === at && e.end === at + len;
+// Curried like budgetError below: instance, provenance, code and the span of
+// the pattern literal, in one predicate all three literal-fault sites share.
+//
+// The diagnostic belongs to both packages. Treffer decided what is wrong with
+// the pattern, so its class and its `TREFFER_*` code survive — a host can still
+// tell a malformed pattern from one over budget. Padvinder decided where in the
+// query that is, because Treffer's own offsets are into the decoded pattern and
+// a JSON escape slides every one of them.
+// Both packages vouch for it, and the code is the one Treffer decided on.
+const delegated = (e) => isDiagnostic(e) && isPattern(e) && e.code.startsWith("TREFFER_");
+const patternFault =
+  (at, len, Kind = SyntaxError) =>
+  (e) =>
+    e instanceof Kind && delegated(e) && patternSpan(e, at, len);
+const patternSpan = (e, at, len) => e.start === at && e.end === at + len;
 
 test("an invalid literal pattern is a located compile fault", () => {
-  const bad = (p, lit = JSON.stringify(p)) => {
+  const bad = (p, Kind, lit = JSON.stringify(p)) => {
     const q = "$[?match(@, " + lit + ")]";
-    assert.throws(() => query(q), patternFault(q.indexOf(lit), lit.length), p);
+    assert.throws(() => query(q), patternFault(q.indexOf(lit), lit.length, Kind), p);
   };
-  for (const p of [
-    "\\d+",
-    "(?=a)",
-    "(a)\\1",
-    "a+?",
-    "[^]",
-    "[[]",
-    "[a[b]",
-    "[z-a]",
-    "a{1025}",
-    "(".repeat(65) + "a" + ")".repeat(65),
-    "a".repeat(4097),
-    "a{0001024}",
+  // A malformed pattern is Treffer's SyntaxError; one over budget is its
+  // RangeError. Flattening both into one PADVINDER_SYNTAX is what this stopped
+  // doing, so the class is part of what each case pins.
+  for (const [p, Kind] of [
+    ["\\d+", SyntaxError],
+    ["(?=a)", SyntaxError],
+    ["(a)\\1", SyntaxError],
+    ["a+?", SyntaxError],
+    ["[^]", SyntaxError],
+    ["[[]", SyntaxError],
+    ["[a[b]", SyntaxError],
+    ["[z-a]", SyntaxError],
+    ["a{1025}", RangeError],
+    ["(".repeat(65) + "a" + ")".repeat(65), RangeError],
+    ["a".repeat(4097), RangeError],
+    ["a{0001024}", RangeError],
   ])
-    bad(p);
+    bad(p, Kind);
+  // The budget metadata survives whole, which the flattening used to drop.
+  assert.throws(
+    () => query('$[?match(@, "a{1025}")]'),
+    (e) => e.code === "TREFFER_MAX_REPETITIONS" && e.limit === 1024 && e.actual === 1025,
+  );
   assert.throws(
     () => query("$[?search(@, '(')]"),
     patternFault(13, 3),

@@ -1,6 +1,6 @@
 # padvinder
 
-A tiny, CSP-safe JSONPath engine for JavaScript. **~3KB min+gzip, one dependency. Passes all 456 valid-selector cases of the official RFC 9535 compliance suite.**
+A tiny, CSP-safe JSONPath engine for JavaScript. **~3KB min+gzip, two tiny dependencies. Passes all 456 valid-selector cases of the official RFC 9535 compliance suite.**
 
 [![NPM version](https://img.shields.io/npm/v/padvinder.svg)](https://www.npmjs.com/package/padvinder)
 [![Build Status](https://github.com/getquario/padvinder/actions/workflows/test.yml/badge.svg)](https://github.com/getquario/padvinder/actions/workflows/test.yml)
@@ -146,7 +146,7 @@ find("$.book[?luhn(@.code)]", data, { luhn: valid }); // your function
 
 `match()` and `search()` use [treffer](https://github.com/getquario/treffer), a bounded [RFC 9485 I-Regexp](https://www.rfc-editor.org/rfc/rfc9485.html) Thompson-NFA matcher. Matching does not backtrack. `^` and `$` are supported as anchors for compatibility with the JSONPath compliance suite. JavaScript-only syntax such as `\d`, lookarounds, backreferences, and lazy quantifiers is rejected; use `[0-9]` in place of `\d`.
 
-Treffer enforces its documented pattern, subject, NFA, and work limits. A pattern written as a **string literal in the query** is compiled when the query compiles: an invalid or resource-limited literal throws a located `SyntaxError` at the pattern, because a typo in the query text is an authoring fault, not data. A pattern that **arrives from data** keeps RFC 9535 semantics: padvinder authenticates errors created by Treffer and maps its syntax and resource diagnostics to no match at row time. Unexpected errors are not misclassified or swallowed. See [Treffer's documentation](https://github.com/getquario/treffer#errors-and-limits) for the current codes, limits, and complexity bounds.
+Treffer enforces its documented pattern, subject, NFA, and work limits. A pattern written as a **string literal in the query** is compiled when the query compiles: an invalid or resource-limited literal throws at the pattern, because a typo in the query text is an authoring fault, not data. That diagnostic is Treffer's, relocated — it keeps Treffer's class and `TREFFER_*` code, so a `SyntaxError` for a malformed pattern is still distinguishable from a `RangeError` for one over budget, `limit` and `actual` included. Its `start` and `end` are padvinder's, spanning the literal in the query: Treffer counts from the start of the decoded pattern, and a JSON escape slides every offset after it. As thrown it authenticates through both `isDiagnostic` functions. An over-budget literal carries a span too, even though a resource limit has no position in the pattern itself: the literal still has one in the query. A pattern that **arrives from data** keeps RFC 9535 semantics: padvinder authenticates errors created by Treffer and maps its syntax and resource diagnostics to no match at row time. Unexpected errors are not misclassified or swallowed. See [Treffer's documentation](https://github.com/getquario/treffer#errors-and-limits) for the current codes, limits, and complexity bounds.
 
 ## Content Security Policy
 

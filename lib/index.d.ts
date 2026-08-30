@@ -1,3 +1,6 @@
+import type { Diagnostic, Relocation } from "waarmerk";
+import type { TrefferErrorCode } from "treffer";
+
 /**
  * Optional per-execution traversal budgets. `maxDepth` defaults to 500 so a
  * deep untrusted document throws a typed diagnostic instead of overflowing
@@ -15,30 +18,37 @@ export type PadvinderErrorCode =
   | "PADVINDER_MAX_DEPTH"
   | "PADVINDER_MAX_RESULTS"
   | "PADVINDER_MAX_COMPARISONS";
-export interface PadvinderDiagnostic extends Error {
-  readonly code?: PadvinderErrorCode;
-  readonly limit?: number;
-  readonly actual?: number;
-  /** Zero-based offset into the query. Compile-time diagnostics only. */
-  readonly start?: number;
-  /** Exclusive offset into the query. Compile-time diagnostics only. */
-  readonly end?: number;
-}
+/**
+ * The fields and their meanings are waarmerk's; this names the code union they
+ * are checked against, Treffer's included.
+ *
+ * `code` is widened with `TrefferErrorCode` because a pattern literal rejected
+ * when the query compiles keeps the code Treffer gave it: a host can still tell
+ * a malformed pattern from one over budget.
+ *
+ * `start`/`end` are offsets into the query, on compile-time diagnostics — with
+ * one addition. A pattern literal rejected for exceeding one of Treffer's
+ * budgets carries a span too. That diagnostic has no position in the pattern,
+ * which is Treffer's coordinate system, but the literal has one in the query.
+ */
+export interface PadvinderDiagnostic extends Diagnostic<PadvinderErrorCode | TrefferErrorCode> {}
+
 /** Test whether an error was created by this padvinder module instance. */
 export function isDiagnostic(error: unknown): error is PadvinderDiagnostic;
 
 /**
  * Copy a diagnostic into an embedder's coordinates: `prefix` is prepended to
- * the message verbatim, `offset` shifts the span when there is one, every
- * other field is carried over, and the copy is authenticated exactly as the
- * original was.
+ * the message verbatim, the span is moved when there is one, every other field
+ * is carried over, and the copy is authenticated exactly as the original was.
+ *
+ * `offset` shifts the span, for an embedder that handed over a verbatim slice
+ * of its own text. `span` replaces it, for one whose text reached the query
+ * through a decode and so has no offset to shift. `span` wins when both are
+ * given.
  *
  * @throws {TypeError} When `diag` is not a diagnostic from this instance.
  */
-export function relocate(
-  diag: unknown,
-  opts?: { prefix?: string; offset?: number },
-): PadvinderDiagnostic;
+export function relocate(diag: unknown, opts?: Relocation): PadvinderDiagnostic;
 
 export type QuerySelector =
   | readonly ["name", string]

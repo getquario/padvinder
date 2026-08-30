@@ -435,3 +435,12 @@ test("string-literal faults point at the offending escape or character", () => {
   assert.strictEqual(offender("$['a\ud800b']"), "\ud800", "a raw lone surrogate points at itself");
   assert.strictEqual(offender('$["a\u0001b"]'), "\u0001", "a control character points at itself");
 });
+
+test("relocate names this package when it refuses, not its dependency", () => {
+  // The message is documented here, and the guard has to stay here to keep it:
+  // waarmerk refuses in its own name, which is a package the caller never chose.
+  assert.throws(
+    () => relocate(SyntaxError("from somewhere else")),
+    (e) => e instanceof TypeError && e.message === "Not a diagnostic from padvinder",
+  );
+});

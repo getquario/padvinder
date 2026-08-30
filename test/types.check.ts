@@ -1,6 +1,8 @@
+import type { TrefferErrorCode } from "treffer";
 import {
   isDiagnostic,
   query,
+  relocate,
   type PadvinderDiagnostic,
   type PadvinderErrorCode,
   type QueryPath,
@@ -28,13 +30,18 @@ void singular;
 const failure: unknown = null;
 if (isDiagnostic(failure)) {
   const diagnostic: PadvinderDiagnostic = failure;
-  const code: PadvinderErrorCode | undefined = failure.code;
+  // Widened by design: a pattern literal rejected at compile time carries
+  // Treffer's code, because Treffer is what decided the pattern was wrong.
+  const code: PadvinderErrorCode | TrefferErrorCode | undefined = failure.code;
+  const moved: PadvinderDiagnostic = relocate(failure, { prefix: "data: ", offset: 1 });
+  const replaced: PadvinderDiagnostic = relocate(failure, { span: [16, 24] });
   void diagnostic;
   void code;
+  void [moved, replaced];
 }
 if (run.isDiagnostic(failure)) {
   const diagnostic: PadvinderDiagnostic = failure;
-  const code: PadvinderErrorCode | undefined = failure.code;
+  const code: PadvinderErrorCode | TrefferErrorCode | undefined = failure.code;
   void diagnostic;
   void code;
 }

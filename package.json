@@ -53,7 +53,8 @@
     "test:unit": "c8 --100 --src lib/ node --disallow-code-generation-from-strings --test --test-concurrency=1 test/*.test.js"
   },
   "dependencies": {
-    "treffer": "^0.4.0"
+    "treffer": "^0.5.0",
+    "waarmerk": "^0.1.0"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.3",
@@ -74,6 +75,7 @@
     {
       "path": "lib/index.js",
       "ignore": [
+        "waarmerk",
         "treffer"
       ],
       "limit": "4.55 kB"

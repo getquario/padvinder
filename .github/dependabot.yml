@@ -1,5 +1,4 @@
 version: 2
-
 updates:
   - package-ecosystem: "npm"
     directory: "/"
@@ -25,23 +24,6 @@ updates:
         patterns:
           - "@size-limit/*"
           - "size-limit"
-
-  - package-ecosystem: "npm"
-    directory: "/bench/comparison"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-    groups:
-      bench:
-        patterns:
-          - "*"
-    labels:
-      - "dependencies"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -57,3 +39,18 @@ updates:
       github-actions:
         patterns:
           - "*"
+  - package-ecosystem: "npm"
+    directory: "/bench/comparison"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      bench:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"

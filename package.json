@@ -1,6 +1,6 @@
 {
   "name": "padvinder",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Tiny, CSP-safe RFC 9535 JSONPath engine. No eval, no new Function.",
   "keywords": [
     "csp",

@@ -1,9 +1,11 @@
 import { isDiagnostic, query } from "../lib/index.js";
 
-// padvinder's only expected error is a compile-time SyntaxError (malformed path
-// or filter). A compiled query never throws at run time and always returns an
-// array of matches — so a runtime throw, or a non-array result, is a finding.
-export const isCompileErr = (e) => e instanceof SyntaxError && isDiagnostic(e);
+// Compile-time faults: a malformed path or filter is SyntaxError; a quoted
+// match/search pattern that exceeds a Treffer budget keeps Treffer's RangeError.
+// A compiled query never throws at run time and always returns an array.
+export const isCompileErr = (e) =>
+  isDiagnostic(e) &&
+  (e instanceof SyntaxError || (e instanceof RangeError && String(e.code).startsWith("TREFFER_")));
 
 export function compileOnly(path, funcs) {
   try {

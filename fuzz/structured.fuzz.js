@@ -183,6 +183,11 @@ function sameResult(a, b) {
     (e) => isCompileErr(e) && /I-Regexp/.test(e.message),
     "invalid literal pattern -> located compile fault",
   );
+  assert.throws(
+    () => query('$[?match(@, "a{1025}")]'),
+    (e) => isCompileErr(e) && e instanceof RangeError && e.code === "TREFFER_MAX_REPETITIONS",
+    "over-budget literal pattern is an expected compile fault",
+  );
   eq(
     "$.s[?search(@, $.p)]",
     { s: ["a"], p: "(" },
@@ -302,7 +307,7 @@ export function fuzz(data) {
     run = query(path, FUNCS);
   } catch (e) {
     if (!isCompileErr(e)) throw e;
-    // VALID paths must compile; only MALFORMED ones may throw SyntaxError —
+    // VALID paths must compile; only MALFORMED ones may throw —
     // except the deliberately invalid literal pattern "(" the generator weaves
     // into match/search, which is a loud located compile fault by design. The
     // guard is scoped to that argument position, so a "(" name selector or

@@ -34,6 +34,7 @@
     "bench:comparison": "npm --prefix bench/comparison run bench",
     "check": "run-s fmt:check lint fallow size test fuzz:regression test:browser",
     "cts:update": "curl -sL -o test/cts.json https://raw.githubusercontent.com/jsonpath-standard/jsonpath-compliance-test-suite/main/cts.json && curl -sL -o test/cts.LICENSE https://raw.githubusercontent.com/jsonpath-standard/jsonpath-compliance-test-suite/main/LICENSE",
+    "commitlint": "commitlint",
     "fallow": "fallow",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
@@ -59,6 +60,8 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.3",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
     "@jazzer.js/bug-detectors": "^4.0.0",
     "@jazzer.js/core": "^4.0.0",
     "@size-limit/preset-small-lib": "^13.0.3",

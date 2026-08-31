@@ -250,6 +250,7 @@ If you read queries out of a larger document — a `data` property in a report s
 git clone https://github.com/getquario/padvinder.git
 cd padvinder
 npm install
+git config core.hooksPath .githooks   # enable the commit-msg hook
 npm run check
 ```
 

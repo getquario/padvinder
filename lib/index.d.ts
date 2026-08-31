@@ -1,6 +1,10 @@
 import type { Diagnostic, Relocation } from "waarmerk";
 import type { TrefferErrorCode } from "treffer";
 
+// Re-exported so an embedder can name the codes a delegated pattern fault
+// carries from 'padvinder' alone, without a treffer dependency of its own.
+export type { TrefferErrorCode } from "treffer";
+
 /**
  * Optional per-execution traversal budgets. `maxDepth` defaults to 500 so a
  * deep untrusted document throws a typed diagnostic instead of overflowing

@@ -13,7 +13,26 @@ A tiny, CSP-safe JSONPath engine for JavaScript. **~3KB min+gzip, two tiny depen
 	</picture>
 </a>
 
-_Padvinder_ is Dutch for "pathfinder", and also what we call a scout. It implements RFC 9535 JSONPath, filters included, with a real parser instead of the generated code that filter evaluation usually relies on. There is no `eval` and no `new Function`, so a query cannot smuggle code into your application, and the engine runs under a strict Content Security Policy.
+_Padvinder_ is Dutch for "pathfinder", and also what we call a scout. It implements RFC 9535 JSONPath — filters included — with a real parser, and never turns query text into JavaScript.
+
+That last part is the reason to care. Filter expressions are JSONPath's classic weak spot: the most-used JavaScript implementation evaluated them by generating and running code, which turned a crafted query into remote code execution ([CVE-2024-21534](https://nvd.nist.gov/vuln/detail/CVE-2024-21534)), followed by bypasses of the first fix. If a query in your system can come from a user, a config file, or a saved report, that is a hole in your application, not in a library you can patch around. padvinder parses filters — and the regular expressions inside them — into closures. There is no `eval` and no `new Function`, so a query has no route to code execution, and the engine runs under a strict Content Security Policy.
+
+## Contents
+
+- [Install](#install)
+- [Usage](#usage)
+- [Is padvinder the right tool?](#is-padvinder-the-right-tool)
+- [Related packages](#related-packages)
+- [Syntax](#syntax)
+- [Filters](#filters)
+- [API](#api)
+- [Traversal budgets](#traversal-budgets)
+- [Safety](#safety)
+- [Content Security Policy](#content-security-policy)
+- [Environments](#environments)
+- [Embedding padvinder](#embedding-padvinder)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Install
 
@@ -21,12 +40,12 @@ _Padvinder_ is Dutch for "pathfinder", and also what we call a scout. It impleme
 npm install padvinder
 ```
 
-Node.js 22 or newer, ESM only.
+Node.js 22 or newer, ESM only. TypeScript declarations ship with the package; nothing extra to install.
 
 ## Usage
 
 ```js
-import { query, find } from "padvinder";
+import { find, query } from "padvinder";
 
 const data = {
   store: {
@@ -48,69 +67,36 @@ cheap(data); // => ['Moby Dick']
 
 // Register your own filter functions:
 find("$..book[?sale(@)].title", data, { sale: (b) => b.price < 9 });
+// => ['Sayings of the Century', 'Moby Dick']
 ```
 
-## API
+A query returns an array of matched **values** — not their paths. A query that matches nothing returns an empty array.
 
-### `query(path, functions?, options?)`
+## Is padvinder the right tool?
 
-Compiles the query and returns a runner `(data) => matches[]`. Malformed paths and invalid filter expressions throw a `SyntaxError` at compile time. A query that matches nothing returns an empty array.
+padvinder is RFC 9535 and nothing else. The RFC is the 2024 standardisation of JSONPath, and it settled a decade of implementations disagreeing about what the same query meant.
 
-The runner exposes deeply frozen compile-time metadata:
+**It fits when:**
 
-- `functions` lists referenced caller-registered filter extensions in first-seen order. RFC built-ins are excluded.
-- `paths` lists deduplicated dependency topologies for the main query and embedded `$`/`@` filter queries. Each path is an anchor-first tuple followed by selector tuples such as `['name', 'store']`, `['index', 0]`, `['wildcard']`, `['union', ...selectors]`, `['slice', start, end, step]`, `['filter']`, or `['descendant', selector]`.
+- Queries come from outside your code — typed by a user, stored in a config file or a saved report, sent over an API — where a query that can execute code is a vulnerability.
+- You ship under a strict CSP, or into a runtime where string-to-code is unavailable.
+- You want a query to mean the same thing here as in another conforming implementation, in any language.
+- You need to bound the work an untrusted query does against an untrusted document. See [Traversal budgets](#traversal-budgets).
+- Bundle size is a real constraint.
 
-Dynamic tuples describe selection topology, not exact field locations or a lossless query AST. Filter predicate text and parent links for embedded queries are intentionally omitted; selector order and union duplicates are preserved.
+**Look elsewhere when:**
 
-The runner also exposes `singular`: `true` when the query is a singular query per RFC 9535 — every segment selects at most one node, so the whole query selects at most one. A consumer asks it before binding a result as a scalar rather than a list.
+- You need the _paths_ of the matches, not their values. This returns matched values only; there is no `resultType` and no normalized-path output.
+- You depend on pre-RFC extensions. Parent (`^`), `@path`, script expressions like `$..[(@.length-1)]`, and the other conveniences that older JavaScript implementations added are not in RFC 9535 and are not here. Porting an existing query may mean rewriting it.
+- You want to write through a path, not just read. Queries never modify your data.
+- Your regular expressions need JavaScript syntax. Filters use I-Regexp, so `\d`, lookarounds, and backreferences are rejected — see [Regular expressions](#regular-expressions).
+- The data is in a database that already has a query language. JSONPath earns its place on documents you hold in memory.
+- You need CommonJS, or Node older than 22. See [Environments](#environments).
 
-The runner also exposes `isDiagnostic(error)`. This narrower predicate returns `true` only for runtime traversal-budget errors created by that compiled runner. Repeated calls share the runner origin; another runner, even from the same module instance, does not authenticate the error.
+## Related packages
 
-### `find(path, data, functions?, options?)`
-
-Shorthand for `query(path, functions)(data)`.
-
-Traversal budgets are host controls. `maxNodes` bounds locations visited across the main query and filter subqueries, `maxDepth` bounds child edges from each query start at depth zero, and `maxResults` bounds the final nodelist of each main or embedded query. **`maxDepth` defaults to 500** — safety by construction, so a deep untrusted document throws a typed diagnostic instead of overflowing the native stack; the other two default to unbounded:
-
-```js
-const options = { maxNodes: 10_000, maxDepth: 64, maxResults: 1_000 };
-find("$..book[*]", data, {}, options);
-```
-
-Each value must be a non-negative safe integer, or `Infinity` — the deliberate spelling for "this budget, unbounded" (`maxDepth: Infinity` restores the old no-limit depth). Exceeding a budget throws a `RangeError` with `code`, `limit`, and `actual` properties. Codes are `PADVINDER_MAX_NODES`, `PADVINDER_MAX_DEPTH`, and `PADVINDER_MAX_RESULTS`. A compiled runner starts with fresh counters on every call.
-
-Errors created by padvinder keep their `SyntaxError`, `TypeError`, or `RangeError` class. Use the exported `isDiagnostic(error)` to authenticate package origin. The check is local to one installed module instance: copied properties and errors from another copy do not pass. It covers compile-time diagnostics, for which no runner is returned, and runtime diagnostics from every runner in that module instance.
-
-Errors from caller-provided coercion hooks, accessors, or function extensions pass through unchanged. Package authentication still identifies where an error was created when caller code rethrows an authentic padvinder diagnostic, while `runner.isDiagnostic(error)` rejects it unless that runner created the runtime fault. The one-shot `find()` API does not expose its temporary runner; use `query()` when runner-scoped authentication is required.
-
-### Compile-time diagnostics
-
-A query that does not parse throws a `SyntaxError` carrying `code` — always `PADVINDER_SYNTAX` — and a span:
-
-- `start`: the zero-based offset into the query;
-- `end`: the exclusive offset.
-
-Spans are offsets into the query string you passed in, so `path.slice(start, end)` is the offending text. A fault inside a filter reports where it is in the whole query, not where it is in the filter: `$.a[?(nope(@))]` points at `nope`, not at offset 1 of the filter body. That holds however deep the fault is — a relative path inside a filter, a string literal inside that path, a filter nested inside another filter. A selector that does not parse spans that selector rather than the whole bracket, a bad escape or character in a string literal spans that escape or character rather than the whole literal, an unclosed bracket points at the bracket that was never closed, and a query that ends early gets an empty span at the end.
-
-Option faults are about the call rather than a place in the query, so the `TypeError` and `RangeError` they throw carry neither a code nor a span. Traversal budgets are exceeded at run time, where the query parsed fine; those keep `code`, `limit`, and `actual`, and have no span.
-
-### Relocating a diagnostic
-
-An embedder that reads queries out of a larger document — a `data` property in a report schema, a field in a config file — reports the fault in its own coordinates, not the query's. `relocate(diagnostic, { prefix, offset })` returns the copy to re-throw:
-
-```js
-import { isDiagnostic, query, relocate } from "padvinder";
-
-try {
-  query(schema.data);
-} catch (error) {
-  if (!isDiagnostic(error)) throw error;
-  throw relocate(error, { prefix: "data: " });
-}
-```
-
-The copy keeps the original's class, prepends `prefix` to the message verbatim, shifts `start` and `end` by `offset` when there is a span, and carries every other field across. It is registered exactly as the original was, so it passes `isDiagnostic` and — for a runtime fault — the runner's own `isDiagnostic` too. The original is left untouched. Relocation belongs here rather than in the embedder because authentication is by identity: a copy an embedder builds itself cannot be authenticated, and a field added to a diagnostic here would be a field the embedder's copy silently drops. Passing anything but a padvinder diagnostic throws a `TypeError`.
+- **[treffer](https://github.com/getquario/treffer)** — the bounded RFC 9485 I-Regexp matcher behind `match()` and `search()`, usable on its own if you want ReDoS-proof pattern matching without JSONPath.
+- **[xprsn](https://github.com/getquario/xprsn)** and **[sjabloon](https://github.com/getquario/sjabloon)** — an expression language and a template engine from the same family, both CSP-safe, if the untrusted input you are evaluating is a rule or a template rather than a query.
 
 ## Syntax
 
@@ -127,32 +113,98 @@ The copy keeps the original's class, prepends `prefix` to the message verbatim, 
 
 ## Filters
 
-Filters follow the RFC 9535 grammar. Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), the logical operators `&&`, `||`, and `!`, and parentheses combine two kinds of operand: literals and _queries_. A bare query is an existence test, so `[?@.a]` keeps children that have an `a`, including a present `null`. A query used in a comparison is read for its value. A missing path compares as "nothing" and does not throw, so `[?@.a.b == 1]` is safe even when `a` is absent. `==` is deep structural equality.
+Filters follow the RFC 9535 grammar. Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), the logical operators `&&`, `||`, and `!`, and parentheses combine two kinds of operand: literals and _queries_.
 
 ```js
 find("$.store.book[?@.price < 10]", data);
-find("$.store.book[?@.price > $.store.bicycle.price]", data); // $ is the root
+find("$.store.book[?@.price < $.store.bicycle.price]", data); // $ is the root
 find('$.store.book[?@.category == "fiction" && @.price < 20]', data);
 find("$.store.book[?!@.sale]", data);
 ```
 
-Five functions ship built in: `length()`, `count()`, `value()`, and the regular-expression tests `match()` (full match) and `search()` (substring). Register your own for anything else, and call them from a filter with `@` as the current node:
+A bare query is an existence test, so `[?@.a]` keeps children that have an `a`, including a present `null`. A query used in a comparison is read for its value. A missing path compares as "nothing" and does not throw, so `[?@.a.b == 1]` is safe even when `a` is absent. `==` is deep structural equality.
+
+### Functions
+
+Five ship built in: `length()`, `count()`, `value()`, and the regular-expression tests `match()` (full match) and `search()` (substring). Register your own for anything else and call them with `@` as the current node:
 
 ```js
-find("$.book[?length(@.title) > 20]", data);
-find('$.book[?match(@.isbn, "[0-9]{13}")]', data);
-find("$.book[?luhn(@.code)]", data, { luhn: valid }); // your function
+find("$..book[?length(@.title) > 20]", data);
+find('$..book[?match(@.isbn, "[0-9]{13}")]', data);
+find("$..book[?luhn(@.code)]", data, { luhn: valid }); // your function
 ```
 
-`match()` and `search()` use [treffer](https://github.com/getquario/treffer), a bounded [RFC 9485 I-Regexp](https://www.rfc-editor.org/rfc/rfc9485.html) Thompson-NFA matcher. Matching does not backtrack. `^` and `$` are supported as anchors for compatibility with the JSONPath compliance suite. JavaScript-only syntax such as `\d`, lookarounds, backreferences, and lazy quantifiers is rejected; use `[0-9]` in place of `\d`.
+Your functions receive plain data values and resolve only from the object you pass — a filter cannot reach a function you did not register.
 
-Treffer enforces its documented pattern, subject, NFA, and work limits. A pattern written as a **string literal in the query** is compiled when the query compiles: an invalid or resource-limited literal throws at the pattern, because a typo in the query text is an authoring fault, not data. That diagnostic is Treffer's, relocated — it keeps Treffer's class and `TREFFER_*` code, so a `SyntaxError` for a malformed pattern is still distinguishable from a `RangeError` for one over budget, `limit` and `actual` included. Its `start` and `end` are padvinder's, spanning the literal in the query: Treffer counts from the start of the decoded pattern, and a JSON escape slides every offset after it. As thrown it authenticates through both `isDiagnostic` functions. An over-budget literal carries a span too, even though a resource limit has no position in the pattern itself: the literal still has one in the query. A pattern that **arrives from data** keeps RFC 9535 semantics: padvinder authenticates errors created by Treffer and maps its syntax and resource diagnostics to no match at row time. Unexpected errors are not misclassified or swallowed. See [Treffer's documentation](https://github.com/getquario/treffer#errors-and-limits) for the current codes, limits, and complexity bounds.
+### Regular expressions
 
-## Content Security Policy
+`match()` and `search()` use [treffer](https://github.com/getquario/treffer), a bounded [RFC 9485 I-Regexp](https://www.rfc-editor.org/rfc/rfc9485.html) Thompson-NFA matcher. Matching does not backtrack, so a pattern from untrusted input cannot wedge the process, and treffer's own pattern, subject, and work limits apply.
 
-padvinder works under `script-src 'self'` with no `unsafe-eval`. Paths and filters compile to a chain of closures. Query text is never turned into JavaScript.
+I-Regexp is smaller than JavaScript's syntax: `\d`, `\w`, `\s`, lookarounds, backreferences, and lazy quantifiers are rejected — write `[0-9]` instead of `\d`. `^` and `$` work as anchors here, for compatibility with the JSONPath compliance suite.
 
-This matters for JSONPath specifically because filter expressions are the classic weak spot: jsonpath-plus evaluated them by executing generated code, which led to remote code execution via crafted queries ([CVE-2024-21534](https://nvd.nist.gov/vuln/detail/CVE-2024-21534)) and follow-up bypasses. padvinder parses filters and regular expressions without executing query text. The test suite runs under `node --disallow-code-generation-from-strings`, which throws on any string-to-code construct the same way a strict CSP does. See the [comparison benchmarks](bench/comparison/) for cold-compile and hot-run comparisons.
+Where the pattern came from decides what a bad one does:
+
+- A pattern written as a **string literal in the query** is compiled when the query compiles, and an invalid or over-budget one throws. A typo in query text is an authoring fault, not data.
+- A pattern that **arrives from data** follows RFC 9535 and simply does not match. A malformed value in a document is not a reason to fail the query.
+
+The thrown diagnostic keeps treffer's class and `TREFFER_*` code, so a malformed pattern stays distinguishable from one over budget. [EMBEDDING.md](EMBEDDING.md#delegated-pattern-diagnostics) has the details for hosts that authenticate errors.
+
+## API
+
+### `query(path, functions?, options?)`
+
+Compiles the query and returns a runner `(data) => matches[]`. Malformed paths and invalid filter expressions throw a `SyntaxError` at compile time, so a compiled query is one that parses.
+
+The runner also carries frozen compile-time metadata — `functions` (the caller-registered extensions the query calls, RFC built-ins excluded), `paths` (what the query depends on), and `singular` (whether it can select more than one node). The last two are aimed at hosts; see [EMBEDDING.md](EMBEDDING.md#paths-what-a-query-depends-on).
+
+```js
+query("$..book[?sale(@)]", { sale: () => true }).functions; // => ['sale']
+```
+
+### `find(path, data, functions?, options?)`
+
+Shorthand for `query(path, functions, options)(data)`. Compiles every call, so prefer `query` in a loop.
+
+### Errors
+
+Errors keep their native `SyntaxError`, `TypeError`, or `RangeError` class. A query that does not parse throws a `SyntaxError` with `code: 'PADVINDER_SYNTAX'` and a span:
+
+```js
+import { isDiagnostic, query } from "padvinder";
+
+try {
+  query("$.a[?(nope(@))]");
+} catch (error) {
+  if (!isDiagnostic(error)) throw error;
+  "$.a[?(nope(@))]".slice(error.start, error.end); // => 'nope'
+}
+```
+
+Spans are offsets into the query string you passed, so `path.slice(start, end)` is the offending text. A fault inside a filter reports where it is in the whole query, not where it is in the filter body — however deeply nested it is. A selector that does not parse spans that selector rather than the whole bracket; a bad escape in a string literal spans the escape rather than the literal; an unclosed bracket points at the bracket that was never closed; a query that ends early gets an empty span at the end.
+
+The codes are `PADVINDER_SYNTAX`, the budget codes `PADVINDER_MAX_NODES`, `PADVINDER_MAX_DEPTH`, `PADVINDER_MAX_RESULTS`, and `PADVINDER_MAX_COMPARISONS` (a fixed internal cap of one million steps on a single deep-equality comparison), plus the `TREFFER_*` codes a bad pattern literal carries. Option faults are about the call rather than a place in the query, so their `TypeError` and `RangeError` carry neither code nor span.
+
+Errors from caller-provided coercion hooks, accessors, or function extensions pass through unchanged. `isDiagnostic(error)` tells padvinder's own from those; it authenticates by identity rather than by shape, which matters if you embed padvinder — see [EMBEDDING.md](EMBEDDING.md#diagnostic-identity), which also covers `relocate`.
+
+## Traversal budgets
+
+An untrusted query against an untrusted document can be expensive without being invalid: `$..*` over a deep document visits everything. Three per-execution budgets bound it, passed as the last argument:
+
+```js
+find("$..book[*]", data, {}, { maxNodes: 10_000, maxDepth: 64, maxResults: 1_000 });
+```
+
+| Option       | Bounds                                                      | Default |
+| ------------ | ----------------------------------------------------------- | ------- |
+| `maxNodes`   | Locations visited, across the main query and its subqueries | ∞       |
+| `maxDepth`   | Child edges from each query start, at depth zero            | **500** |
+| `maxResults` | The final nodelist of each main or embedded query           | ∞       |
+
+`maxDepth` defaults to 500 so a deeply nested untrusted document throws a typed diagnostic instead of overflowing the native stack. Each value must be a non-negative safe integer, or `Infinity` — the deliberate spelling for "this budget, unbounded", so `maxDepth: Infinity` opts back out.
+
+Exceeding a budget throws a `RangeError` with `code`, `limit`, and `actual`. A compiled runner starts with fresh counters on every call, so budgets are per execution, not per runner.
+
+These bound work inside the engine, not the wall clock of your application. [SECURITY.md](SECURITY.md) covers what that does and does not buy you, and the process for reporting a vulnerability.
 
 ## Safety
 
@@ -161,11 +213,23 @@ This matters for JSONPath specifically because filter expressions are the classi
 - I-Regexp matching uses bounded NFA simulation instead of a backtracking engine.
 - Registered functions resolve only from what you provide, and receive plain data values as arguments.
 
+## Content Security Policy
+
+padvinder works under `script-src 'self'` with no `unsafe-eval`. Paths and filters compile to a chain of closures; query text is never turned into JavaScript. The test suite runs under `node --disallow-code-generation-from-strings`, which throws on any string-to-code construct the same way a strict CSP does.
+
+Not generating code costs some speed against implementations that do. See the [comparison benchmarks](bench/comparison/) for cold-compile and hot-run numbers.
+
 ## Environments
 
 Node.js 22 and newer, ESM only. Browser use is supported through a standards-based ESM bundler in environments supporting ES2024. Direct `<script>` globals, UMD, and CommonJS builds are not provided.
 
 Shipping CommonJS alongside ESM would put two copies of the core in any process that mixed `require` and `import`. Each copy would have its own diagnostic identity, so `isDiagnostic` would return `false` across the seam.
+
+TypeScript declarations are hand-written and ship in the package; `npm run check` runs `attw` against them.
+
+## Embedding padvinder
+
+If you read queries out of a larger document — a `data` property in a report schema, a field in a config file — [EMBEDDING.md](EMBEDDING.md) covers the surface built for that: `paths` dependency topologies, `singular`, diagnostic identity, relocating a fault into your own coordinates, and how a delegated pattern diagnostic behaves.
 
 ## Contributing
 
@@ -176,7 +240,9 @@ npm install
 npm run check
 ```
 
-`npm run check` is the local gate. Conventions for this repo live in [AGENTS.md](AGENTS.md).
+`npm run check` is the local gate: formatting, lint, dead-code and dependency checks, the size budget, the unit and type suites, the fuzz regression corpus, and the browser CSP run. It is the same gate CI runs, so a green `check` locally means a green pull request.
+
+The RFC 9535 compliance suite is vendored at `test/cts.json`; `npm run cts:update` refreshes it from upstream. Conventions for this repo live in [AGENTS.md](AGENTS.md).
 
 ## License
 

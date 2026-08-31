@@ -2,7 +2,7 @@
 
 Tiny, CSP-safe RFC 9535 JSONPath engine. Plain JS + JSDoc. The filter grammar lives here; bounded I-Regexp matching comes from treffer. `lib/index.js` is the implementation and the package.
 
-Work is done when `npm run check` is green. Scripts live in `package.json`. Run them on Node: Bun accepts `--disallow-code-generation-from-strings` but does not enforce it. A single suite is `node --disallow-code-generation-from-strings --test test/query.test.js`. Public syntax and API live in `README.md`.
+Work is done when `npm run check` is green. Scripts live in `package.json`. Run them on Node: Bun accepts `--disallow-code-generation-from-strings` but does not enforce it. A single suite is `node --disallow-code-generation-from-strings --test test/query.test.js`. Public syntax and API live in `README.md`; the host-facing surface (`paths`, `singular`, `relocate`, diagnostic identity, delegated pattern diagnostics) lives in `EMBEDDING.md`.
 
 ## Architecture
 

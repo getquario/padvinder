@@ -16,8 +16,23 @@ export interface QueryOptions {
   maxDepth?: number;
   maxResults?: number;
 }
+/**
+ * The categories of mistake padvinder itself mints. A code names the category,
+ * not the exact fault: which of several ways a string literal is malformed is
+ * the message's job, not a consumer's to branch on.
+ *
+ * `PADVINDER_SYNTAX` is the residue — an unexpected character in a path, and a
+ * filter body that does not parse. There is no finite set of ways to write
+ * something that is not a query, so those share one category rather than being
+ * enumerated, and this union stays open at that end.
+ */
 export type PadvinderErrorCode =
   | "PADVINDER_SYNTAX"
+  | "PADVINDER_MISSING_ROOT"
+  | "PADVINDER_BAD_SELECTOR"
+  | "PADVINDER_UNCLOSED_BRACKET"
+  | "PADVINDER_BAD_STRING"
+  | "PADVINDER_UNKNOWN_FUNCTION"
   | "PADVINDER_MAX_NODES"
   | "PADVINDER_MAX_DEPTH"
   | "PADVINDER_MAX_RESULTS"

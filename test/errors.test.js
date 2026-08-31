@@ -112,7 +112,7 @@ test("padvinder-created errors are authenticated", () => {
     (e) =>
       e instanceof SyntaxError &&
       isDiagnostic(e) &&
-      e.code === "PADVINDER_SYNTAX" &&
+      e.code === "PADVINDER_MISSING_ROOT" &&
       !Object.hasOwn(e, "limit"),
   );
 });
@@ -304,38 +304,66 @@ test("caller errors pass through unchanged", () => {
     assert.throws(run, (e) => e === host && !isDiagnostic(e));
 });
 
-const span = (path) => {
+// `code` is the category the fault is expected to land in, so every span
+// assertion below doubles as the pin on which category that is.
+const span = (path, code = "PADVINDER_SYNTAX") => {
   const e = caught(() => query(path));
   assert.ok(e instanceof SyntaxError);
   assert.ok(isDiagnostic(e));
-  assert.strictEqual(e.code, "PADVINDER_SYNTAX");
+  assert.strictEqual(e.code, code, path);
   return [e.start, e.end];
 };
 
 test("compile errors carry a code and a span in query coordinates", () => {
-  assert.deepStrictEqual(span("store.book"), [0, 1], "the character that should have been $");
-  assert.deepStrictEqual(span(""), [0, 0], "an empty query is an empty span");
-  assert.deepStrictEqual(span("$.store["), [7, 8], "an unclosed bracket points at the bracket");
+  const root = "PADVINDER_MISSING_ROOT";
+  assert.deepStrictEqual(span("store.book", root), [0, 1], "the character that should have been $");
+  assert.deepStrictEqual(span("", root), [0, 0], "an empty query is an empty span");
+  assert.deepStrictEqual(
+    span("$.store[", "PADVINDER_UNCLOSED_BRACKET"),
+    [7, 8],
+    "an unclosed bracket points at the bracket",
+  );
   assert.deepStrictEqual(span("$.store."), [8, 8], "a trailing dot ends the query early");
   assert.deepStrictEqual(span("$store"), [1, 2], "the character that needed a dot before it");
-  assert.deepStrictEqual(span("$.store[!!]"), [8, 10], "a bad selector spans the selector");
+  assert.deepStrictEqual(
+    span("$.store[!!]", "PADVINDER_BAD_SELECTOR"),
+    [8, 10],
+    "a bad selector spans the selector",
+  );
   assert.deepStrictEqual(span("$.a[?(@.x >)]"), [11, 11], "a filter fault is in query coordinates");
-  assert.deepStrictEqual(span("$.a[?(nope(@))]"), [6, 10], "an unknown function spans its name");
+  assert.deepStrictEqual(
+    span("$.a[?(nope(@))]", "PADVINDER_UNKNOWN_FUNCTION"),
+    [6, 10],
+    "an unknown function spans its name",
+  );
 });
 
-const offender = (path) => path.slice(...span(path));
+const offender = (path, code) => path.slice(...span(path, code));
 
 test("spans stay in query coordinates however deep the fault is", () => {
   // The relative path inside a filter is parsed by the same path parser as the
   // query itself, on filter-local text; its faults still come back in query
   // coordinates.
-  assert.strictEqual(offender("$.a[?(@.b[!!])]"), "!!", "a bad selector inside a filter");
+  const sel = "PADVINDER_BAD_SELECTOR";
+  assert.strictEqual(offender("$.a[?(@.b[!!])]", sel), "!!", "a bad selector inside a filter");
   assert.strictEqual(offender("$.a[?(@.-)]"), "-", "a bad path character inside a filter");
-  assert.strictEqual(offender("$.a[?(@['\\q'])]"), "\\q", "a bad escape inside a filter literal");
+  assert.strictEqual(
+    offender("$.a[?(@['\\q'])]", "PADVINDER_BAD_STRING"),
+    "\\q",
+    "a bad escape inside a filter literal",
+  );
   // A nested filter is at an offset within the filter that contains it.
-  assert.strictEqual(offender("$.a[?(@.b[?(nope(@))])]"), "nope", "a fault in a nested filter");
+  assert.strictEqual(
+    offender("$.a[?(@.b[?(nope(@))])]", "PADVINDER_UNKNOWN_FUNCTION"),
+    "nope",
+    "a fault in a nested filter",
+  );
   // Parsing trims, but the caller's string is what the offsets index into.
-  assert.strictEqual(offender("   $.store["), "[", "leading whitespace does not shift a span");
+  assert.strictEqual(
+    offender("   $.store[", "PADVINDER_UNCLOSED_BRACKET"),
+    "[",
+    "leading whitespace does not shift a span",
+  );
 });
 
 test("relocate returns an authenticated copy in the embedder's coordinates", () => {
@@ -344,7 +372,7 @@ test("relocate returns an authenticated copy in the embedder's coordinates", () 
 
   assert.ok(moved instanceof SyntaxError);
   assert.strictEqual(moved.message, "data: " + original.message);
-  assert.strictEqual(moved.code, "PADVINDER_SYNTAX");
+  assert.strictEqual(moved.code, "PADVINDER_UNCLOSED_BRACKET", "the category is carried over");
   assert.deepStrictEqual([moved.start, moved.end], [13, 14]);
   assert.ok(isDiagnostic(moved));
   assert.deepStrictEqual([original.start, original.end], [7, 8], "the original is left untouched");
@@ -414,26 +442,48 @@ test("relocate keeps an option fault a TypeError", () => {
   assert.ok(!Object.hasOwn(moved, "start"), "an option fault is not a place in the query");
 });
 
+const STRING = "PADVINDER_BAD_STRING";
+
 test("string-literal faults point at the offending escape or character", () => {
-  assert.strictEqual(offender("$['a\\qb']"), "\\q", "an unknown escape spans backslash and char");
-  assert.strictEqual(offender("$['a\\u12Gb']"), "\\u12Gb", "a bad hex quad spans the whole escape");
+  const at = (path) => offender(path, STRING);
+  assert.strictEqual(at("$['a\\qb']"), "\\q", "an unknown escape spans backslash and char");
+  assert.strictEqual(at("$['a\\u12Gb']"), "\\u12Gb", "a bad hex quad spans the whole escape");
+  assert.strictEqual(at("$['\\u12']"), "\\u12", "a truncated escape stops at the closing quote");
+  assert.strictEqual(at("$['a\\udc00b']"), "\\udc00", "a lone low surrogate escape spans itself");
   assert.strictEqual(
-    offender("$['\\u12']"),
-    "\\u12",
-    "a truncated escape stops at the closing quote",
-  );
-  assert.strictEqual(
-    offender("$['a\\udc00b']"),
-    "\\udc00",
-    "a lone low surrogate escape spans itself",
-  );
-  assert.strictEqual(
-    offender("$['a\\ud800bc']"),
+    at("$['a\\ud800bc']"),
     "\\ud800",
     "a high surrogate needing a pair points at itself",
   );
-  assert.strictEqual(offender("$['a\ud800b']"), "\ud800", "a raw lone surrogate points at itself");
-  assert.strictEqual(offender('$["a\u0001b"]'), "\u0001", "a control character points at itself");
+  assert.strictEqual(at("$['a\ud800b']"), "\ud800", "a raw lone surrogate points at itself");
+  assert.strictEqual(at('$["a\u0001b"]'), "\u0001", "a control character points at itself");
+  assert.strictEqual(at('$["a" "b"]'), '"', "an unescaped delimiter points at itself");
+});
+
+test("one string-literal code covers seven conditions the message tells apart", () => {
+  // The category is what a consumer branches on; which of the seven went wrong
+  // is what an author reads. Every message is distinct, and the two that share
+  // a test and a span in `stepUnq` are distinct from each other.
+  const message = (path) => caught(() => query(path)).message;
+  const cases = [
+    ["$['a\\qb']", "Unknown escape \\q"],
+    ["$['a\\u12Gb']", "Bad \\u escape"],
+    ["$['a\\ud800bc']", "Unpaired high surrogate escape"],
+    ["$['a\\udc00b']", "Lone low surrogate escape"],
+    ["$['a\ud800b']", "Unpaired high surrogate"],
+    ["$['a\udc00b']", "Lone low surrogate"],
+    ['$["a\u0001b"]', "Unescaped control character"],
+    // The scanner closes the literal at the first unescaped quote, so reaching
+    // this needs a spec that re-opens one: `"a" "b"` matches the quoted-name
+    // regex, and the reader then meets a delimiter it did not put there.
+    ['$["a" "b"]', 'Unescaped " in string literal'],
+  ];
+  for (const [path, expected] of cases) assert.strictEqual(message(path), expected, path);
+  assert.strictEqual(
+    new Set(cases.map((c) => c[1])).size,
+    cases.length,
+    "no two conditions share a message",
+  );
 });
 
 test("relocate names this package when it refuses, not its dependency", () => {

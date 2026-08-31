@@ -167,7 +167,7 @@ Shorthand for `query(path, functions, options)(data)`. Compiles every call, so p
 
 ### Errors
 
-Errors keep their native `SyntaxError`, `TypeError`, or `RangeError` class. A query that does not parse throws a `SyntaxError` with `code: 'PADVINDER_SYNTAX'` and a span:
+Errors keep their native `SyntaxError`, `TypeError`, or `RangeError` class. A query that does not parse throws a `SyntaxError` with a `code` naming what kind of mistake it was, and a span:
 
 ```js
 import { isDiagnostic, query } from "padvinder";
@@ -176,13 +176,26 @@ try {
   query("$.a[?(nope(@))]");
 } catch (error) {
   if (!isDiagnostic(error)) throw error;
+  error.code; // => 'PADVINDER_UNKNOWN_FUNCTION'
   "$.a[?(nope(@))]".slice(error.start, error.end); // => 'nope'
 }
 ```
 
 Spans are offsets into the query string you passed, so `path.slice(start, end)` is the offending text. A fault inside a filter reports where it is in the whole query, not where it is in the filter body — however deeply nested it is. A selector that does not parse spans that selector rather than the whole bracket; a bad escape in a string literal spans the escape rather than the literal; an unclosed bracket points at the bracket that was never closed; a query that ends early gets an empty span at the end.
 
-The codes are `PADVINDER_SYNTAX`, the budget codes `PADVINDER_MAX_NODES`, `PADVINDER_MAX_DEPTH`, `PADVINDER_MAX_RESULTS`, and `PADVINDER_MAX_COMPARISONS` (a fixed internal cap of one million steps on a single deep-equality comparison), plus the `TREFFER_*` codes a bad pattern literal carries. Option faults are about the call rather than a place in the query, so their `TypeError` and `RangeError` carry neither code nor span.
+A code names the category of mistake, not the exact fault — which of several ways a string literal is malformed is what the message says. Five categories are a single named mistake:
+
+| Code                         | Means                                                                |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `PADVINDER_MISSING_ROOT`     | the query does not start at `$`                                      |
+| `PADVINDER_BAD_SELECTOR`     | a bracket selector is neither a quoted name nor an integer           |
+| `PADVINDER_UNCLOSED_BRACKET` | a `[` was never closed                                               |
+| `PADVINDER_BAD_STRING`       | a quoted name or string literal is malformed                         |
+| `PADVINDER_UNKNOWN_FUNCTION` | a filter called a name that is not built in and not in your registry |
+
+`PADVINDER_SYNTAX` is the rest: an unexpected character in a path, and a filter body that does not parse. Those are open-ended — there is no finite set of ways to write something that is not a query — so they share one category rather than being enumerated.
+
+The budget codes are `PADVINDER_MAX_NODES`, `PADVINDER_MAX_DEPTH`, `PADVINDER_MAX_RESULTS`, and `PADVINDER_MAX_COMPARISONS` (a fixed internal cap of one million steps on a single deep-equality comparison), and a bad pattern literal carries a `TREFFER_*` code instead. Option faults are about the call rather than a place in the query, so their `TypeError` and `RangeError` carry neither code nor span.
 
 Errors from caller-provided coercion hooks, accessors, or function extensions pass through unchanged. `isDiagnostic(error)` tells padvinder's own from those; it authenticates by identity rather than by shape, which matters if you embed padvinder — see [EMBEDDING.md](EMBEDDING.md#diagnostic-identity), which also covers `relocate`.
 

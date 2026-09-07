@@ -6,7 +6,6 @@
   // Nested package with its own manifest, installed and run by
   // `npm run bench:comparison`. Nothing in this package imports it.
   "ignorePatterns": ["bench/comparison/**"],
-  "ignoreDependencies": ["@size-limit/preset-small-lib"],
   "health": {
     "ignore": ["bench/**", "fuzz/**"],
   },

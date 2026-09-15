@@ -1,21 +1,33 @@
 # padvinder
 
-A tiny, CSP-safe JSONPath engine for JavaScript. **~3KB min+gzip, two tiny dependencies. Passes all 456 valid-selector cases of the official RFC 9535 compliance suite.**
+A tiny JSONPath engine for JavaScript that implements RFC 9535 — filters included — with a real parser, and never turns query text into JavaScript.
 
-[![NPM version](https://img.shields.io/npm/v/padvinder.svg)](https://www.npmjs.com/package/padvinder)
-[![Build Status](https://github.com/getquario/padvinder/actions/workflows/test.yml/badge.svg)](https://github.com/getquario/padvinder/actions/workflows/test.yml)
-[![NPM downloads](https://img.shields.io/npm/dm/padvinder.svg)](https://www.npmjs.com/package/padvinder)
-[![Apache-2.0 license](https://img.shields.io/github/license/getquario/padvinder.svg)](https://github.com/getquario/padvinder/blob/main/LICENSE)
+That last part is the reason to care. Filter expressions are JSONPath's classic weak spot: the most-used JavaScript implementation evaluated them by generating and running code, which turned a crafted query into remote code execution ([CVE-2024-21534](https://nvd.nist.gov/vuln/detail/CVE-2024-21534)), followed by bypasses of the first fix. If a query in your system can come from a user, a config file, or a saved report, that is a hole in your application rather than in a library you can patch around. padvinder parses filters — and the regular expressions inside them — into closures, so a query has no route to code execution at all. _Padvinder_ is Dutch for "pathfinder", and also what we call a scout.
 
-<a href="https://webstronauts.com?utm_source=github&utm_medium=readme&utm_campaign=padvinder">
-	<picture>
-		<img src="https://webstronauts.com/images/sponsored-by.svg" alt="Sponsored by The Webstronauts" width="200" height="65">
-	</picture>
-</a>
+- **Spec-complete.** Passes every one of the 703 cases in the official RFC 9535 compliance suite: all 456 valid selectors, and the 247 malformed ones it has to reject.
+- **No code generation anywhere.** No `eval`, no `new Function`, and no `RegExp` built from query text. Runs under a strict `script-src 'self'`.
+- **Safe regular expressions too.** `match()` and `search()` filters go through [treffer](https://github.com/getquario/treffer), an RFC 9485 I-Regexp matcher backed by a Thompson NFA, so a filter pattern cannot backtrack catastrophically.
+- **Bounded traversal.** `maxNodes`, `maxDepth` and `maxResults` cap what an expensive-but-valid query like `$..*` may do; `maxDepth` defaults to 500 so a deeply nested document throws a typed diagnostic instead of overflowing the stack.
+- **Tiny.** 4.2 kB minified and brotlied, or 6.5 kB with treffer and waarmerk bundled in.
+- **Hardened.** 67 tests at 100% branch coverage, plus three fuzz targets.
 
-_Padvinder_ is Dutch for "pathfinder", and also what we call a scout. It implements RFC 9535 JSONPath — filters included — with a real parser, and never turns query text into JavaScript.
+```js
+import { find } from "padvinder";
 
-That last part is the reason to care. Filter expressions are JSONPath's classic weak spot: the most-used JavaScript implementation evaluated them by generating and running code, which turned a crafted query into remote code execution ([CVE-2024-21534](https://nvd.nist.gov/vuln/detail/CVE-2024-21534)), followed by bypasses of the first fix. If a query in your system can come from a user, a config file, or a saved report, that is a hole in your application, not in a library you can patch around. padvinder parses filters — and the regular expressions inside them — into closures. There is no `eval` and no `new Function`, so a query has no route to code execution, and the engine runs under a strict Content Security Policy.
+const data = {
+  store: {
+    book: [
+      { title: "Moby Dick", price: 8.99 },
+      { title: "Sword of Honour", price: 12.99 },
+    ],
+  },
+};
+
+find("$.store.book[?@.price < 10].title", data);
+//=> ['Moby Dick']
+```
+
+<img src="https://getquario.com/favicon.svg" alt="Quario logo" width="16" height="16" /> <b>padvinder</b> is built by the team behind <b><a href="https://getquario.com?utm_source=github&utm_medium=readme&utm_campaign=padvinder">Quario</a></b>, a declarative reporting engine for JavaScript that renders JSON report definitions to <b>HTML, PDF, workbooks, and Word</b> — without <code>eval</code>.
 
 ## Contents
 

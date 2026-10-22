@@ -27,6 +27,16 @@ test("child access", () => {
   assert.deepStrictEqual(find("$.store['bicycle']['color']", data), ["red"]);
   assert.deepStrictEqual(find('$["store"]["bicycle"]', data), [{ color: "red", price: 19.95 }]);
   assert.deepStrictEqual(find("$.store.book[9].title", data), [], "out of bounds matches nothing");
+  assert.deepStrictEqual(
+    find("$.store.book[4]", data),
+    [],
+    "an index at the length is past the end",
+  );
+  assert.deepStrictEqual(
+    find("$.store.book[-5]", data),
+    [],
+    "a negative index past the start stays out of range",
+  );
   assert.deepStrictEqual(find("$.nope.deeper", data), [], "missing paths match nothing");
 });
 
@@ -158,6 +168,16 @@ test("RFC filter semantics", () => {
     }),
     [1],
     "== is deep equality",
+  );
+  assert.deepStrictEqual(
+    find("$.list[?@.a == @.b].n", {
+      list: [
+        { n: 1, a: { k: 1 }, b: { k: 1, extra: 2 } },
+        { n: 2, a: [1, 2], b: [1, 2, 3] },
+      ],
+    }),
+    [],
+    "a subset is not equal: every member of one side is on the other, and no more",
   );
   assert.deepStrictEqual(
     find("$.list[?@.missing == @.gone].n", { list: [{ n: 1 }] }),
@@ -294,6 +314,16 @@ test("invalid patterns from data still match nothing", () => {
     find("$.values[?match(@, $.p)]", { values: ["a"], p: "a" }),
     ["a"],
     "a valid data pattern still matches",
+  );
+  assert.deepStrictEqual(
+    find("$.values[?match(@, $.p)]", { values: ["a"], p: 1 }),
+    [],
+    "a pattern that is not a string matches nothing",
+  );
+  assert.deepStrictEqual(
+    find("$.values[?match(@, $.p)]", { values: [1], p: "1" }),
+    [],
+    "a subject that is not a string matches nothing",
   );
 });
 

@@ -6,6 +6,9 @@
   // Nested package with its own manifest, installed and run by
   // `npm run bench:comparison`. Nothing in this package imports it.
   "ignorePatterns": ["bench/comparison/**"],
+  // Stryker resolves `testRunner: "tap"` to this package by naming convention at
+  // run time, so no import or script path names it.
+  "ignoreDependencies": ["@stryker-mutator/tap-runner"],
   "health": {
     "ignore": ["bench/**", "fuzz/**"],
   },

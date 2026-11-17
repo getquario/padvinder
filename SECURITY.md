@@ -23,7 +23,7 @@ Treat queries as code. Keep user input out of query syntax when a fixed query wi
 
 Do not open a public GitHub issue for a security vulnerability.
 
-Use [GitHub's private vulnerability form](https://github.com/getquario/padvinder/security/advisories/new).
+Use [GitHub's private vulnerability form](https://github.com/robinvdvleuten/padvinder/security/advisories/new).
 
 Include the affected code, its impact, and steps that reproduce the issue. Tell us whether and how to credit you.
 

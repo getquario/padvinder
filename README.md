@@ -6,7 +6,7 @@ That last part is the reason to care. Filter expressions are JSONPath's classic 
 
 - **Spec-complete.** Passes every one of the 703 cases in the official RFC 9535 compliance suite: all 456 valid selectors, and the 247 malformed ones it has to reject.
 - **No code generation anywhere.** No `eval`, no `new Function`, and no `RegExp` built from query text. Runs under a strict `script-src 'self'`.
-- **Safe regular expressions too.** `match()` and `search()` filters go through [treffer](https://github.com/getquario/treffer), an RFC 9485 I-Regexp matcher backed by a Thompson NFA, so a filter pattern cannot backtrack catastrophically.
+- **Safe regular expressions too.** `match()` and `search()` filters go through [treffer](https://github.com/robinvdvleuten/treffer), an RFC 9485 I-Regexp matcher backed by a Thompson NFA, so a filter pattern cannot backtrack catastrophically.
 - **Bounded traversal.** `maxNodes`, `maxDepth` and `maxResults` cap what an expensive-but-valid query like `$..*` may do; `maxDepth` defaults to 500 so a deeply nested document throws a typed diagnostic instead of overflowing the stack.
 - **Tiny.** 4.2 kB minified and brotlied, or 6.5 kB with treffer and waarmerk bundled in.
 - **Hardened.** 67 tests at 100% branch coverage, plus three fuzz targets.
@@ -26,8 +26,6 @@ const data = {
 find("$.store.book[?@.price < 10].title", data);
 //=> ['Moby Dick']
 ```
-
-<img src="https://getquario.com/favicon.svg" alt="Quario logo" width="16" height="16" /> <b>padvinder</b> is built by the team behind <b><a href="https://getquario.com?utm_source=github&utm_medium=readme&utm_campaign=padvinder">Quario</a></b>, a declarative reporting engine for JavaScript that renders JSON report definitions to <b>HTML, PDF, workbooks, and Word</b> — without <code>eval</code>.
 
 ## Contents
 
@@ -107,8 +105,8 @@ padvinder is RFC 9535 and nothing else. The RFC is the 2024 standardisation of J
 
 ## Related packages
 
-- **[treffer](https://github.com/getquario/treffer)** — the bounded RFC 9485 I-Regexp matcher behind `match()` and `search()`, usable on its own if you want ReDoS-proof pattern matching without JSONPath.
-- **[xprsn](https://github.com/getquario/xprsn)** and **[sjabloon](https://github.com/getquario/sjabloon)** — an expression language and a template engine from the same family, both CSP-safe, if the untrusted input you are evaluating is a rule or a template rather than a query.
+- **[treffer](https://github.com/robinvdvleuten/treffer)** — the bounded RFC 9485 I-Regexp matcher behind `match()` and `search()`, usable on its own if you want ReDoS-proof pattern matching without JSONPath.
+- **[xprsn](https://github.com/robinvdvleuten/xprsn)** and **[sjabloon](https://github.com/robinvdvleuten/sjabloon)** — an expression language and a template engine from the same family, both CSP-safe, if the untrusted input you are evaluating is a rule or a template rather than a query.
 
 ## Syntax
 
@@ -150,7 +148,7 @@ Your functions receive plain data values and resolve only from the object you pa
 
 ### Regular expressions
 
-`match()` and `search()` use [treffer](https://github.com/getquario/treffer), a bounded [RFC 9485 I-Regexp](https://www.rfc-editor.org/rfc/rfc9485.html) Thompson-NFA matcher. Matching does not backtrack, so a pattern from untrusted input cannot wedge the process, and treffer's own pattern, subject, and work limits apply.
+`match()` and `search()` use [treffer](https://github.com/robinvdvleuten/treffer), a bounded [RFC 9485 I-Regexp](https://www.rfc-editor.org/rfc/rfc9485.html) Thompson-NFA matcher. Matching does not backtrack, so a pattern from untrusted input cannot wedge the process, and treffer's own pattern, subject, and work limits apply.
 
 I-Regexp is smaller than JavaScript's syntax: `\d`, `\w`, `\s`, lookarounds, backreferences, and lazy quantifiers are rejected — write `[0-9]` instead of `\d`. `^` and `$` work as anchors here, for compatibility with the JSONPath compliance suite.
 
@@ -259,7 +257,7 @@ If you read queries out of a larger document — a `data` property in a report s
 ## Contributing
 
 ```bash
-git clone https://github.com/getquario/padvinder.git
+git clone https://github.com/robinvdvleuten/padvinder.git
 cd padvinder
 npm install
 git config core.hooksPath .githooks   # enable the commit-msg hook

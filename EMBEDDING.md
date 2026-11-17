@@ -126,7 +126,7 @@ added to a diagnostic here would be a field the embedder's copy silently drops.
 
 ## Delegated pattern diagnostics
 
-`match()` and `search()` patterns are [treffer](https://github.com/getquario/treffer)
+`match()` and `search()` patterns are [treffer](https://github.com/robinvdvleuten/treffer)
 I-Regexps, and where the pattern came from decides what a bad one does. The rule
 is in the [README](README.md#regular-expressions); this is what it means for a
 host authenticating errors.
